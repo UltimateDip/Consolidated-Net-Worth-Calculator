@@ -126,17 +126,13 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     };
     
     try {
-      const success = await addOrUpdateHolding(payload);
+      await addOrUpdateHolding(payload);
 
-      if (success) {
-        setStatus('Saved successfully!');
-        if (!assetToEdit) setFormData({...defaultState, currency: baseCurrency});
-        setValidation({ loading: false, price: null, error: null });
-        setTimeout(() => setStatus(''), 2000);
-        if (assetToEdit && onClearEdit) onClearEdit();
-      } else {
-        throw new Error('Failed to update holding');
-      }
+      setStatus('Saved successfully!');
+      if (!assetToEdit) setFormData({...defaultState, currency: baseCurrency});
+      setValidation({ loading: false, price: null, error: null });
+      setTimeout(() => setStatus(''), 2000);
+      if (assetToEdit && onClearEdit) onClearEdit();
     } catch (error) {
       console.error("Error updating holding", error);
       setStatus(error.message);

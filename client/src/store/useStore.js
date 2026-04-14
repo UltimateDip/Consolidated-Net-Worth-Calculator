@@ -60,15 +60,9 @@ const useStore = create(persist((set, get) => ({
   },
   
   addOrUpdateHolding: async (payload) => {
-     try {
-       await api.addOrUpdateHolding(payload);
-       // CRITICAL FIX: Ensure portfolio is re-synced before signaling completion
-       await get().fetchPortfolio();
-       return true;
-     } catch (error) {
-       console.error("Error updating holding", error);
-       return false;
-     }
+    await api.addOrUpdateHolding(payload);
+    await get().fetchPortfolio();
+    return true;
   }
 }), {
   name: 'networth-storage', 
