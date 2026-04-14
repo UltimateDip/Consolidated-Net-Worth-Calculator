@@ -32,38 +32,58 @@ router.get('/portfolio', async (req, res) => {
        AND h.units > 0
     `).all();
 
-    let totalNetWorth = 0;
-    const enrichedAssets = [];
-
-    for (let asset of assets) {
-      let currentPrice = asset.avg_price || 1; // Default to 1 (useful for cash)
-      
-      // Attempt to fetch live price
+    // --- Phase 1: Fetch all live prices concurrently ---
+    const pricePromises = assets.map(asset => {
       if (['EQUITY', 'MF', 'CRYPTO', 'GOLD', 'SILVER'].includes(asset.type)) {
-        // SGBs are classified as GOLD but trade on NSE — fetch via equity adapter
         const priceType = (asset.type === 'GOLD' && asset.ticker.startsWith('SGB')) ? 'EQUITY' : asset.type;
-        const livePrice = await priceService.fetchPrice(asset.ticker, priceType, asset.currency);
-        if (livePrice) currentPrice = livePrice;
+        return priceService.fetchPrice(asset.ticker, priceType, asset.currency)
+          .catch(err => {
+            console.error(`[Portfolio] Price fetch failed for ${asset.ticker}:`, err.message);
+            return null; // Graceful fallback — use avg_price
+          });
+      }
+      return Promise.resolve(null);
+    });
+
+    const livePrices = await Promise.all(pricePromises);
+
+    // --- Phase 2: Pre-fetch unique FX rates concurrently ---
+    const uniqueCurrencies = [...new Set(
+      assets.map(a => a.currency || 'USD').filter(c => c !== baseCurrency)
+    )];
+
+    const fxRateMap = {};
+    if (uniqueCurrencies.length > 0) {
+      const fxPromises = uniqueCurrencies.map(cur =>
+        currencyService.getExchangeRate(cur, baseCurrency)
+          .then(rate => ({ cur, rate }))
+          .catch(() => ({ cur, rate: 1 })) // Fallback to 1:1 if FX fails
+      );
+      const fxResults = await Promise.all(fxPromises);
+      fxResults.forEach(({ cur, rate }) => { fxRateMap[cur] = rate; });
+    }
+
+    // --- Phase 3: Assemble enriched portfolio ---
+    let totalNetWorth = 0;
+    const enrichedAssets = assets.map((asset, i) => {
+      let currentPrice = livePrices[i] || asset.avg_price || 1;
+
+      let finalPrice = currentPrice;
+      const assetCurrency = asset.currency || 'USD';
+      if (assetCurrency !== baseCurrency) {
+        finalPrice = currentPrice * (fxRateMap[assetCurrency] || 1);
       }
 
-      // Convert via Currency Service if asset currency mismatches Base Currency
-      let finalPrice = currentPrice;
-      let assetCurrency = asset.currency || 'USD';
-      if (assetCurrency !== baseCurrency) {
-          const fxRate = await currencyService.getExchangeRate(assetCurrency, baseCurrency);
-          finalPrice = currentPrice * fxRate;
-      }
-      
       const totalValue = finalPrice * asset.current_units;
       totalNetWorth += totalValue;
 
-      enrichedAssets.push({
+      return {
         ...asset,
-        currentPrice: finalPrice, // Provide standardized dashboard price
-        originalPrice: currentPrice, // Provide original un-converted price
+        currentPrice: finalPrice,
+        originalPrice: currentPrice,
         totalValue,
-      });
-    }
+      };
+    });
 
     // Save a daily snapshot for the historical graph
     const today = new Date().toISOString().split('T')[0];
