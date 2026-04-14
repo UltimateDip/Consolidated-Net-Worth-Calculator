@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import useStore from '../store/useStore';
 import { X, Search, CheckCircle, AlertCircle, RefreshCcw } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import * as api from '../api/portfolioApi';
+import { formatCurrency } from '../utils/formatters';
 
 const CURRENCIES = ['USD', 'INR', 'EUR', 'GBP', 'BTC', 'ETH'];
 
@@ -62,10 +63,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     searchTimeout.current = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const url = `${API_URL}/search-symbols?q=${encodeURIComponent(query)}&type=${currentType}`;
-        console.log(`[UI] Searching: ${url}`);
-        const res = await fetch(url);
-        const data = await res.json();
+        const data = await api.searchSymbols(query, currentType);
         setSuggestions(data.slice(0, 5));
         setShowSuggestions(true);
       } catch (err) {
@@ -95,8 +93,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
   const verifyTicker = async (ticker, type, currency) => {
     setValidation({ loading: true, price: null, error: null });
     try {
-      const res = await fetch(`${API_URL}/validate-ticker?ticker=${encodeURIComponent(ticker)}&type=${type}&currency=${currency}`);
-      const data = await res.json();
+      const data = await api.validateTicker(ticker, type, currency);
       if (data.price) {
         setValidation({ loading: false, price: data.price, error: null });
         setFormData(prev => ({ ...prev, price: prev.price || data.price }));
@@ -129,25 +126,17 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     };
     
     try {
-      const res = await fetch(`${API_URL}/holdings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const success = await addOrUpdateHolding(payload);
 
-      if (res.status === 409) {
-        const data = await res.json();
-        throw new Error(data.error);
+      if (success) {
+        setStatus('Saved successfully!');
+        if (!assetToEdit) setFormData({...defaultState, currency: baseCurrency});
+        setValidation({ loading: false, price: null, error: null });
+        setTimeout(() => setStatus(''), 2000);
+        if (assetToEdit && onClearEdit) onClearEdit();
+      } else {
+        throw new Error('Failed to update holding');
       }
-
-      if (!res.ok) throw new Error('Failed to update holding');
-
-      setStatus('Saved successfully!');
-      if (!assetToEdit) setFormData({...defaultState, currency: baseCurrency});
-      setValidation({ loading: false, price: null, error: null });
-      fetchPortfolio(); // Refresh the store
-      setTimeout(() => setStatus(''), 2000);
-      if (assetToEdit && onClearEdit) onClearEdit();
     } catch (error) {
       console.error("Error updating holding", error);
       setStatus(error.message);

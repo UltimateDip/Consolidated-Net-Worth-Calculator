@@ -15,11 +15,11 @@ class FinnhubAdapter extends PriceAdapter {
   }
   async getPrice(ticker, currency) {
     if (!this.apiKey) throw new Error('Finnhub API key not configured');
-    
+
     let searchTicker = ticker;
     // Prevent accidental US ticker matching (e.g., LTM US vs LTIMindtree India)
     if (currency === 'INR' && !ticker.includes('.')) {
-        searchTicker = `${ticker}.NS`;
+      searchTicker = `${ticker}.NS`;
     }
 
     const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${searchTicker}&token=${this.apiKey}`);
@@ -35,43 +35,43 @@ class CoinGeckoAdapter extends PriceAdapter {
     const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ticker.toLowerCase()}&vs_currencies=usd`);
     const data = await res.json();
     if (data[ticker.toLowerCase()] && data[ticker.toLowerCase()].usd) {
-       return data[ticker.toLowerCase()].usd;
+      return data[ticker.toLowerCase()].usd;
     }
     throw new Error('Crypto price not found');
   }
 }
 
 class MetalPriceAdapter extends PriceAdapter {
-    constructor(apiKey) {
-        super();
-        this.apiKey = apiKey;
+  constructor(apiKey) {
+    super();
+    this.apiKey = apiKey;
+  }
+  async getPrice(ticker) {
+    // Ticker like XAU, XAG
+    if (!this.apiKey) throw new Error('MetalPriceAPI key not configured');
+    const res = await fetch(`https://api.metalpriceapi.com/v1/latest?api_key=${this.apiKey}&base=USD&currencies=${ticker}`);
+    const data = await res.json();
+    if (data.rates && data.rates[ticker]) {
+      // Price is generally USD per 1 Ounce. The API returns the multiplier, we often need 1/rate if base is USD and rate is XAU
+      // MetalPriceAPI free tier base is USD. rate for XAU is 0.0004..., so 1 Ounce = 1 / 0.0004 USD
+      return 1 / data.rates[ticker];
     }
-    async getPrice(ticker) {
-        // Ticker like XAU, XAG
-        if (!this.apiKey) throw new Error('MetalPriceAPI key not configured');
-        const res = await fetch(`https://api.metalpriceapi.com/v1/latest?api_key=${this.apiKey}&base=USD&currencies=${ticker}`);
-        const data = await res.json();
-        if (data.rates && data.rates[ticker]) {
-            // Price is generally USD per 1 Ounce. The API returns the multiplier, we often need 1/rate if base is USD and rate is XAU
-            // MetalPriceAPI free tier base is USD. rate for XAU is 0.0004..., so 1 Ounce = 1 / 0.0004 USD
-            return 1 / data.rates[ticker];
-        }
-        throw new Error('Metal price not found');
-    }
+    throw new Error('Metal price not found');
+  }
 }
 
 class MFAdapter extends PriceAdapter {
   async getPrice(ticker) {
     // Basic validation for Scheme Code (usually 6 digits)
     if (!/^\d+$/.test(ticker)) {
-       throw new Error(`Invalid Mutual Fund Scheme Code: ${ticker}. Please use the 6-digit numeric code from mfapi.in`);
+      throw new Error(`Invalid Mutual Fund Scheme Code: ${ticker}. Please use the 6-digit numeric code from mfapi.in`);
     }
 
     const res = await fetch(`https://api.mfapi.in/mf/${ticker}/latest`);
     const data = await res.json();
-    
+
     if (data && data.data && data.data.length > 0) {
-       return parseFloat(data.data[0].nav);
+      return parseFloat(data.data[0].nav);
     }
     throw new Error('Mutual Fund price not found');
   }
@@ -80,9 +80,9 @@ class MFAdapter extends PriceAdapter {
     const res = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(query)}`);
     const data = await res.json();
     return (data || []).slice(0, 10).map(item => ({
-       symbol: item.schemeCode.toString(),
-       description: item.schemeName,
-       type: 'MF'
+      symbol: item.schemeCode.toString(),
+      description: item.schemeName,
+      type: 'MF'
     }));
   }
 }
@@ -105,34 +105,34 @@ class PriceService {
 
   async searchSymbols(query, type) {
     let results = [];
-    
+
     // If type is specified, prioritize that adapter
     if (type === 'MF') {
-       return await new MFAdapter().search(query);
+      return await new MFAdapter().search(query);
     }
 
     // Default: Try Equity (Finnhub)
     try {
-        const equityAdapter = this.adapters['EQUITY']();
-        const finnhubRes = await fetch(`https://finnhub.io/api/v1/search?q=${query}&token=${equityAdapter.apiKey}`);
-        const finnhubData = await finnhubRes.json();
-        if (finnhubData.result) {
-            results = [...results, ...finnhubData.result.map(r => ({
-                symbol: r.symbol,
-                description: r.description,
-                type: 'EQUITY'
-            }))];
-        }
+      const equityAdapter = this.adapters['EQUITY']();
+      const finnhubRes = await fetch(`https://finnhub.io/api/v1/search?q=${query}&token=${equityAdapter.apiKey}`);
+      const finnhubData = await finnhubRes.json();
+      if (finnhubData.result) {
+        results = [...results, ...finnhubData.result.map(r => ({
+          symbol: r.symbol,
+          description: r.description,
+          type: 'EQUITY'
+        }))];
+      }
     } catch (e) {
-        console.error('Equity search failed:', e.message);
+      console.error('Equity search failed:', e.message);
     }
 
     // Also include MF if results are low or query looks like an Indian MF
     if (results.length < 5) {
-        try {
-            const mfResults = await new MFAdapter().search(query);
-            results = [...results, ...mfResults];
-        } catch (e) {}
+      try {
+        const mfResults = await new MFAdapter().search(query);
+        results = [...results, ...mfResults];
+      } catch (e) { }
     }
 
     return results;
@@ -143,31 +143,31 @@ class PriceService {
 
     // Handle SGBs (Sovereign Gold Bonds)
     if (type === 'GOLD' && ticker.startsWith('SGB')) {
-        try {
-            // First attempt: Try to get market price from exchange (NSE/BSE)
-            const exchangeTicker = ticker.includes('.') ? ticker : `${ticker}.NS`;
-            const marketPrice = await this.adapters['EQUITY']().getPrice(exchangeTicker);
-            if (marketPrice && marketPrice > 0) return marketPrice;
-        } catch (e) {
-            console.log(`Market price unavailable for ${ticker}, falling back to spot gold calculation.`);
-        }
+      try {
+        // First attempt: Try to get market price from exchange (NSE/BSE)
+        const exchangeTicker = ticker.includes('.') ? ticker : `${ticker}.NS`;
+        const marketPrice = await this.adapters['EQUITY']().getPrice(exchangeTicker);
+        if (marketPrice && marketPrice > 0) return marketPrice;
+      } catch (e) {
+        console.log(`Market price unavailable for ${ticker}, falling back to spot gold calculation.`);
+      }
 
-        // Fallback: Calculate derived price from Spot Gold (XAU)
-        try {
-            const xauPriceUsdOz = await this.adapters['GOLD']().getPrice('XAU');
-            
-            // Need Currency Service for USD -> INR conversion
-            const CurrencyService = require('./CurrencyService');
-            const usdToInr = await CurrencyService.getExchangeRate('USD', 'INR');
-            
-            const inrPerOz = xauPriceUsdOz * usdToInr;
-            const inrPerGram = inrPerOz / 31.1035; // 1 troy ounce = 31.1035 grams
-            
-            // Add a slight 'SGB premium' if desired, but spot gram is the most accurate base
-            return inrPerGram;
-        } catch (e) {
-            console.error('SGB fallback pricing failed:', e.message);
-        }
+      // Fallback: Calculate derived price from Spot Gold (XAU)
+      try {
+        const xauPriceUsdOz = await this.adapters['GOLD']().getPrice('XAU');
+
+        // Need Currency Service for USD -> INR conversion
+        const CurrencyService = require('./CurrencyService');
+        const usdToInr = await CurrencyService.getExchangeRate('USD', 'INR');
+
+        const inrPerOz = xauPriceUsdOz * usdToInr;
+        const inrPerGram = inrPerOz / 31.1035; // 1 troy ounce = 31.1035 grams
+
+        // Add a slight 'SGB premium' if desired, but spot gram is the most accurate base
+        return inrPerGram;
+      } catch (e) {
+        console.error('SGB fallback pricing failed:', e.message);
+      }
     }
 
     // Check Cache
@@ -189,7 +189,7 @@ class PriceService {
     const adapter = getAdapter();
     try {
       const price = await adapter.getPrice(ticker, currency);
-      
+
       // Update Cache
       db.prepare(`
         INSERT INTO price_cache (ticker, price, timestamp) 
@@ -200,7 +200,7 @@ class PriceService {
       return price;
     } catch (err) {
       if (!err.message.includes('Price not found') && !err.message.includes('API key not configured')) {
-         console.error(`[PriceService] Failed to fetch price for ${ticker}:`, err.message);
+        console.error(`[PriceService] Failed to fetch price for ${ticker}:`, err.message);
       }
       // Fallback to stale cache if API fails
       if (cached) return cached.price;

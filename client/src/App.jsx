@@ -32,7 +32,7 @@ function App() {
             </Link>
           </nav>
         </header>
-        
+
         <main>
           <Routes>
             <Route path="/" element={<Dashboard />} />

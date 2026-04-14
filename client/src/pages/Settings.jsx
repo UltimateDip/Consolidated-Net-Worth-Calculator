@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import { Info, RefreshCw } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import * as api from '../api/portfolioApi';
 
 const Tooltip = ({ children }) => (
   <div className="tooltip-container" style={{ position: 'relative', display: 'inline-block', marginLeft: '8px', cursor: 'pointer' }}>
@@ -50,8 +50,7 @@ const Settings = () => {
   const handleBulkEnrich = async () => {
     setIsEnriching(true);
     try {
-      const res = await fetch(`${API_URL}/assets/bulk-enrich`, { method: 'POST' });
-      const data = await res.json();
+      const data = await api.bulkEnrichAssets();
       alert(data.message || 'Bulk enrichment started!');
     } catch (err) {
       console.error(err);
