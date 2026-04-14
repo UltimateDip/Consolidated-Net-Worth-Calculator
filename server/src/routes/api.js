@@ -98,13 +98,43 @@ router.get('/portfolio', async (req, res) => {
   }
 });
 
-// GET historical portfolio snapshots
-router.get('/history', (req, res) => {
+// GET historical portfolio snapshots (normalised to current base currency)
+router.get('/history', async (req, res) => {
   try {
+    const baseCurrency = db.prepare('SELECT value FROM settings WHERE key = ?').get('BASE_CURRENCY')?.value || 'USD';
     const snapshots = db.prepare(
       'SELECT date, total_value, base_currency FROM networth_snapshots ORDER BY date ASC LIMIT 90'
     ).all();
-    res.json(snapshots);
+
+    // Identify which past snapshots were saved in a different currency
+    const foreignCurrencies = [...new Set(
+      snapshots.map(s => s.base_currency).filter(c => c && c !== baseCurrency)
+    )];
+
+    // Pre-fetch FX rates for all unique foreign currencies concurrently
+    const fxRateMap = {};
+    if (foreignCurrencies.length > 0) {
+      const fxPromises = foreignCurrencies.map(cur =>
+        currencyService.getExchangeRate(cur, baseCurrency)
+          .then(rate => ({ cur, rate }))
+          .catch(() => ({ cur, rate: 1 }))
+      );
+      const fxResults = await Promise.all(fxPromises);
+      fxResults.forEach(({ cur, rate }) => { fxRateMap[cur] = rate; });
+    }
+
+    // Normalise all snapshots to the current base currency
+    const normalised = snapshots.map(s => {
+      const snapshotCurrency = s.base_currency || baseCurrency;
+      const rate = snapshotCurrency === baseCurrency ? 1 : (fxRateMap[snapshotCurrency] || 1);
+      return {
+        date: s.date,
+        total_value: s.total_value * rate,
+        base_currency: baseCurrency,
+      };
+    });
+
+    res.json(normalised);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
