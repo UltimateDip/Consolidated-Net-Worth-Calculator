@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const portfolioRoutes = require('./routes/portfolio.routes');
+const errorHandler = require('./middlewares/errorHandler');
 
 // Initialize environment variables if present
 dotenv.config();
@@ -19,6 +20,8 @@ app.use('/api', portfolioRoutes);
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
+
+app.use(errorHandler);
 
 // Start server
 app.listen(PORT, () => {

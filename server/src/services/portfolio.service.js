@@ -169,7 +169,12 @@ class PortfolioService {
       price = 1;
     }
 
-    const enrichFn = this.triggerAssetEnrichment.bind(this);
+    const enrichFn = (assetId, ticker) => {
+      this.triggerAssetEnrichment(assetId, ticker).catch(err => 
+        console.error('[Background Task] Enrichment failed for', ticker, ':', err.message)
+      );
+    };
+    
     const assetId = repo.upsertHolding(
       { id, name, ticker, type, units, price, currency: currency || 'USD' },
       enrichFn
@@ -184,7 +189,12 @@ class PortfolioService {
     const parser = BrokerParserFactory.getParser(brokerName);
     const results = await parser.parse(filePath);
 
-    const enrichFn = this.triggerAssetEnrichment.bind(this);
+    const enrichFn = (assetId, ticker) => {
+      this.triggerAssetEnrichment(assetId, ticker).catch(err => 
+        console.error('[Background Task] Enrichment failed for', ticker, ':', err.message)
+      );
+    };
+    
     repo.importBrokerResults(results, enrichFn);
 
     return results.length;
@@ -227,11 +237,15 @@ class PortfolioService {
 
     // Process in background to prevent timeout
     (async () => {
-      for (const asset of assets) {
-        await this.triggerAssetEnrichment(asset.id, asset.ticker);
-        await new Promise(resolve => setTimeout(resolve, 500));
+      try {
+        for (const asset of assets) {
+          await this.triggerAssetEnrichment(asset.id, asset.ticker);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        console.log(`[Service] Bulk enrichment completed`);
+      } catch (err) {
+        console.error('[Background Task] Bulk enrichment process failed:', err.message);
       }
-      console.log(`[Service] Bulk enrichment completed`);
     })();
 
     return assets.length;
