@@ -85,12 +85,14 @@ router.get('/portfolio', async (req, res) => {
       };
     });
 
-    // Save a daily snapshot for the historical graph
+    // Save a daily snapshot with FX rates for accurate historical conversion
     const today = new Date().toISOString().split('T')[0];
+    // Build complete FX snapshot: base→base is 1, plus all fetched cross-rates
+    const fxSnapshot = { [baseCurrency]: 1, ...fxRateMap };
     db.prepare(`
-      INSERT INTO networth_snapshots (date, total_value, base_currency) VALUES (?, ?, ?)
-      ON CONFLICT(date) DO UPDATE SET total_value=excluded.total_value, base_currency=excluded.base_currency
-    `).run(today, totalNetWorth, baseCurrency);
+      INSERT INTO networth_snapshots (date, total_value, base_currency, fx_rates) VALUES (?, ?, ?, ?)
+      ON CONFLICT(date) DO UPDATE SET total_value=excluded.total_value, base_currency=excluded.base_currency, fx_rates=excluded.fx_rates
+    `).run(today, totalNetWorth, baseCurrency, JSON.stringify(fxSnapshot));
 
     res.json({ baseCurrency, totalNetWorth, assets: enrichedAssets });
   } catch (error) {
@@ -98,35 +100,65 @@ router.get('/portfolio', async (req, res) => {
   }
 });
 
-// GET historical portfolio snapshots (normalised to current base currency)
+// GET historical portfolio snapshots (normalised to current base currency using historical FX rates)
 router.get('/history', async (req, res) => {
   try {
     const baseCurrency = db.prepare('SELECT value FROM settings WHERE key = ?').get('BASE_CURRENCY')?.value || 'USD';
     const snapshots = db.prepare(
-      'SELECT date, total_value, base_currency FROM networth_snapshots ORDER BY date ASC LIMIT 90'
+      'SELECT date, total_value, base_currency, fx_rates FROM networth_snapshots ORDER BY date ASC LIMIT 90'
     ).all();
 
-    // Identify which past snapshots were saved in a different currency
-    const foreignCurrencies = [...new Set(
-      snapshots.map(s => s.base_currency).filter(c => c && c !== baseCurrency)
+    // Collect legacy snapshots (no stored fx_rates) that need a live fallback
+    const legacyCurrencies = [...new Set(
+      snapshots
+        .filter(s => !s.fx_rates && s.base_currency && s.base_currency !== baseCurrency)
+        .map(s => s.base_currency)
     )];
 
-    // Pre-fetch FX rates for all unique foreign currencies concurrently
-    const fxRateMap = {};
-    if (foreignCurrencies.length > 0) {
-      const fxPromises = foreignCurrencies.map(cur =>
+    // One-time live FX fetch for legacy data only
+    const legacyFxMap = {};
+    if (legacyCurrencies.length > 0) {
+      const fxPromises = legacyCurrencies.map(cur =>
         currencyService.getExchangeRate(cur, baseCurrency)
           .then(rate => ({ cur, rate }))
           .catch(() => ({ cur, rate: 1 }))
       );
       const fxResults = await Promise.all(fxPromises);
-      fxResults.forEach(({ cur, rate }) => { fxRateMap[cur] = rate; });
+      fxResults.forEach(({ cur, rate }) => { legacyFxMap[cur] = rate; });
     }
 
-    // Normalise all snapshots to the current base currency
+    // Normalise each snapshot using its own stored FX rates
     const normalised = snapshots.map(s => {
       const snapshotCurrency = s.base_currency || baseCurrency;
-      const rate = snapshotCurrency === baseCurrency ? 1 : (fxRateMap[snapshotCurrency] || 1);
+
+      // Already in the target currency — no conversion needed
+      if (snapshotCurrency === baseCurrency) {
+        return { date: s.date, total_value: s.total_value, base_currency: baseCurrency };
+      }
+
+      let rate = 1;
+
+      if (s.fx_rates) {
+        // storedRates was saved relative to snapshotCurrency (the base at save time)
+        // e.g. if snapshot base was INR: { INR: 1, USD: 83.5 }
+        //   meaning 1 USD = 83.5 INR
+        // To convert INR → USD: divide by 83.5
+        // To convert INR → EUR: divide by storedRates['EUR']
+        const storedRates = JSON.parse(s.fx_rates);
+
+        if (storedRates[baseCurrency]) {
+          // storedRates[baseCurrency] = how many snapshotCurrency per 1 baseCurrency
+          // So: value_in_snapshotCurrency / storedRates[baseCurrency] = value_in_baseCurrency
+          rate = 1 / storedRates[baseCurrency];
+        } else {
+          // Target currency wasn't tracked on that day — fall back to live
+          rate = legacyFxMap[snapshotCurrency] || 1;
+        }
+      } else {
+        // Legacy snapshot without stored rates — use live fallback
+        rate = legacyFxMap[snapshotCurrency] || 1;
+      }
+
       return {
         date: s.date,
         total_value: s.total_value * rate,

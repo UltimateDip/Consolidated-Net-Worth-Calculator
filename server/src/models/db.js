@@ -61,6 +61,12 @@ function initDb() {
   if (!tableInfo.some(col => col.name === 'suggested_name')) {
     db.exec("ALTER TABLE assets ADD COLUMN suggested_name TEXT");
   }
+
+  // Migration: Add fx_rates JSON column to networth_snapshots for historical currency conversion
+  const snapshotInfo = db.prepare("PRAGMA table_info(networth_snapshots)").all();
+  if (!snapshotInfo.some(col => col.name === 'fx_rates')) {
+    db.exec("ALTER TABLE networth_snapshots ADD COLUMN fx_rates TEXT");
+  }
 }
 
 initDb();
