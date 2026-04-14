@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const apiRoutes = require('./routes/api');
+const portfolioRoutes = require('./routes/portfolio.routes');
 
 // Initialize environment variables if present
 dotenv.config();
@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use('/api', apiRoutes);
+app.use('/api', portfolioRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

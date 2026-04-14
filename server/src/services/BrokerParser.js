@@ -9,7 +9,7 @@ class BrokerStrategy {
 
 class ZerodhaStrategy extends BrokerStrategy {
   async parse(filePath) {
-    const results = [];
+    const rawResults = [];
     try {
       const workbook = xlsx.readFile(filePath);
       const sheetName = workbook.SheetNames[0];
@@ -39,18 +39,42 @@ class ZerodhaStrategy extends BrokerStrategy {
           const currentPrice = currentPriceIdx !== -1 ? parseFloat(row[currentPriceIdx]) : null;
 
           if (!isNaN(qty)) {
-             results.push({
+             rawResults.push({
                ticker: symbolStr.trim(),
                name: symbolStr.trim(),
                units: qty,
-               price: isNaN(price) ? 0 : price,
+               investedValue: qty * (isNaN(price) ? 0 : price),
                currentPrice: (!isNaN(currentPrice) && currentPrice !== null) ? currentPrice : undefined,
                type: 'EQUITY',
                currency: 'INR'
              });
           }
       }
-      return results;
+
+      // Merge duplicate tickers (e.g. same stock across multiple trade lots)
+      const merged = {};
+      for (const item of rawResults) {
+        if (merged[item.ticker]) {
+          merged[item.ticker].units += item.units;
+          merged[item.ticker].investedValue += item.investedValue;
+          // Keep the latest currentPrice
+          if (item.currentPrice !== undefined) {
+            merged[item.ticker].currentPrice = item.currentPrice;
+          }
+        } else {
+          merged[item.ticker] = { ...item };
+        }
+      }
+
+      return Object.values(merged).map(item => ({
+        ticker: item.ticker,
+        name: item.name,
+        units: item.units,
+        price: item.units > 0 ? item.investedValue / item.units : 0,
+        currentPrice: item.currentPrice,
+        type: item.type,
+        currency: item.currency,
+      }));
     } catch (error) {
        throw new Error('Failed to parse Zerodha file: ' + error.message);
     }
