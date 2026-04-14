@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Production build directories
+client/dist/
+client/build/
+
+# Private User Data & Database
+# The networth.sqlite database contains all your financial data AND your API keys (Finnhub, MetalPrice)
+data/
+private-assets/
+
+# Environment Variables (if added later)
+.env
+.env.local
+.env.*.local
+
+# OS Specific generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
