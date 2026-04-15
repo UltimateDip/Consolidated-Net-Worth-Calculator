@@ -38,14 +38,27 @@ class ZerodhaStrategy extends BrokerStrategy {
           const price = parseFloat(row[priceIdx] || 0);
           const currentPrice = currentPriceIdx !== -1 ? parseFloat(row[currentPriceIdx]) : null;
 
+          let ticker = symbolStr.trim();
+          let assetType = 'EQUITY';
+
+          // Auto-detect SGB (Sovereign Gold Bonds)
+          if (ticker.toUpperCase().includes('SGB')) {
+              assetType = 'GOLD';
+          }
+
+          // Append .NS if missing and it's equity (Zerodha stocks are mostly NSE)
+          if (assetType === 'EQUITY' && !ticker.includes('.')) {
+              ticker = `${ticker}.NS`;
+          }
+
           if (!isNaN(qty)) {
              rawResults.push({
-               ticker: symbolStr.trim(),
+               ticker: ticker,
                name: symbolStr.trim(),
                units: qty,
                investedValue: qty * (isNaN(price) ? 0 : price),
                currentPrice: (!isNaN(currentPrice) && currentPrice !== null) ? currentPrice : undefined,
-               type: 'EQUITY',
+               type: assetType,
                currency: 'INR'
              });
           }
