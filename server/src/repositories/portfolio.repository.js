@@ -70,7 +70,8 @@ class PortfolioRepository {
       db.prepare('UPDATE assets SET name = ?, ticker = ?, suggested_name = NULL, suggested_ticker = NULL WHERE id = ?')
         .run(newName, newTicker, id);
     } else {
-      db.prepare('UPDATE assets SET name = ?, suggested_name = NULL WHERE id = ?').run(newName, id);
+      db.prepare('UPDATE assets SET name = ?, suggested_name = NULL, suggested_ticker = NULL WHERE id = ?')
+        .run(newName, id);
     }
   }
 

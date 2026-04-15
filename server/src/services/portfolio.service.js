@@ -179,8 +179,8 @@ class PortfolioService {
       price = 1;
     }
 
-    const enrichFn = (assetId, ticker) => {
-      this.triggerAssetEnrichment(assetId, ticker).catch(err => 
+    const enrichFn = (assetId, ticker, type, name) => {
+      this.triggerAssetEnrichment(assetId, ticker, type, name).catch(err => 
         console.error('[Background Task] Enrichment failed for', ticker, ':', err.message)
       );
     };
@@ -199,8 +199,8 @@ class PortfolioService {
     const parser = BrokerParserFactory.getParser(brokerName);
     const results = await parser.parse(filePath);
 
-    const enrichFn = (assetId, ticker) => {
-      this.triggerAssetEnrichment(assetId, ticker).catch(err => 
+    const enrichFn = (assetId, ticker, type, name) => {
+      this.triggerAssetEnrichment(assetId, ticker, type, name).catch(err => 
         console.error('[Background Task] Enrichment failed for', ticker, ':', err.message)
       );
     };
@@ -226,13 +226,15 @@ class PortfolioService {
 
   applySuggestion(assetId) {
     const asset = repo.getAssetWithSuggestion(assetId);
-    if (!asset || (!asset.suggested_name && !asset.suggested_ticker)) {
-      return null;
+    if (!asset) return null; 
+    
+    if (!asset.suggested_name && !asset.suggested_ticker) {
+      return true; // Already applied
     }
     const newName = asset.suggested_name || asset.name;
     const newTicker = asset.suggested_ticker || asset.ticker;
     
-    console.log(`[Service] Updating asset ${assetId}: ticker="${asset.ticker}"->"/${newTicker}", name="${asset.name}"->"${newName}"`);
+    console.log(`[Service] Updating asset ${assetId}: ticker="${asset.ticker}" -> "${newTicker}", name="${asset.name}" -> "${newName}"`);
     repo.applySuggestedName(assetId, newName, newTicker);
     return true;
   }

@@ -1,4 +1,5 @@
 const db = require('../models/db');
+const repo = require('../repositories/portfolio.repository');
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -44,20 +45,27 @@ class CoinGeckoAdapter extends PriceAdapter {
 class YahooFinanceAdapter extends PriceAdapter {
   async getPrice(ticker) {
     // Yahoo Finance works well for Indian stocks with .NS or .BO suffix
-    try {
-      const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    // Adding a simple retry mechanism for resilience
+    let attempts = 3;
+    while (attempts > 0) {
+      try {
+        const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        });
+        const data = await res.json();
+        const result = data.chart?.result?.[0];
+        if (result && result.meta?.regularMarketPrice) {
+          return result.meta.regularMarketPrice;
         }
-      });
-      const data = await res.json();
-      const result = data.chart?.result?.[0];
-      if (result && result.meta?.regularMarketPrice) {
-        return result.meta.regularMarketPrice;
+        throw new Error('Price not found in Yahoo Finance');
+      } catch (e) {
+        attempts--;
+        if (attempts === 0) throw new Error(`Yahoo Finance fetch failed after 3 attempts: ${e.message}`);
+        // Small delay before retry (500ms)
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-      throw new Error('Price not found in Yahoo Finance');
-    } catch (e) {
-      throw new Error(`Yahoo Finance fetch failed: ${e.message}`);
     }
   }
 }
@@ -120,8 +128,7 @@ class PriceService {
   }
 
   getSetting(key) {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
-    return row ? row.value : null;
+    return repo.getSetting(key);
   }
 
   async findMFCodeByName(name) {
