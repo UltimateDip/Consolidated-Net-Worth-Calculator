@@ -302,7 +302,6 @@ router.post('/import/:broker', upload.single('file'), async (req, res) => {
 // Symbol Search (powered by cache + Finnhub + MFAPI)
 router.get('/search-symbols', async (req, res) => {
   const { q, type } = req.query;
-  console.log(`[API] Symbol search: query="${q}", type="${type}"`);
   const results = await priceService.searchSymbols(q, type);
   res.json(results);
 });
@@ -317,15 +316,12 @@ router.get('/validate-ticker', async (req, res) => {
 // Apply suggested name
 router.post('/assets/:id/apply-suggestion', (req, res) => {
   const { id } = req.params;
-  console.log(`[API] Applying suggestion for asset ${id}`);
   const asset = db.prepare('SELECT name, suggested_name FROM assets WHERE id = ?').get(id);
   
   if (asset && asset.suggested_name) {
-    console.log(`[API] Updating name from "${asset.name}" to "${asset.suggested_name}"`);
     db.prepare('UPDATE assets SET name = ?, suggested_name = NULL WHERE id = ?').run(asset.suggested_name, id);
     res.json({ success: true });
   } else {
-    console.error(`[API] No suggestion found for asset ${id}`);
     res.status(404).json({ error: 'No suggestion found' });
   }
 });
@@ -333,7 +329,6 @@ router.post('/assets/:id/apply-suggestion', (req, res) => {
 // Ignore suggested name
 router.post('/assets/:id/ignore-suggestion', (req, res) => {
   const { id } = req.params;
-  console.log(`[API] Ignoring suggestion for asset ${id}`);
   db.prepare('UPDATE assets SET suggested_name = NULL WHERE id = ?').run(id);
   res.json({ success: true });
 });
@@ -342,7 +337,6 @@ router.post('/assets/:id/ignore-suggestion', (req, res) => {
 router.post('/assets/bulk-enrich', async (req, res) => {
   try {
     const assets = db.prepare("SELECT id, ticker FROM assets WHERE type = 'EQUITY'").all();
-    console.log(`[API] Starting bulk enrichment for ${assets.length} items`);
     
     // Process in background to prevent timeout
     (async () => {
@@ -351,7 +345,6 @@ router.post('/assets/bulk-enrich', async (req, res) => {
         // Sleep 500ms between calls to respect rate limits
         await new Promise(resolve => setTimeout(resolve, 500)); 
       }
-      console.log(`[API] Bulk enrichment completed`);
     })();
 
     res.json({ 

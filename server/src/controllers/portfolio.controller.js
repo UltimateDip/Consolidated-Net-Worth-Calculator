@@ -63,7 +63,6 @@ class PortfolioController {
   // GET /api/search-symbols
   searchSymbols = asyncHandler(async (req, res) => {
     const { q, type } = req.query;
-    console.log(`[API] Symbol search: query="${q}", type="${type}"`);
     const results = await portfolioService.searchSymbols(q, type);
     res.json(results);
   });

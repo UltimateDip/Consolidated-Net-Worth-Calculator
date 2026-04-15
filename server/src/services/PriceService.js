@@ -1,5 +1,6 @@
 const db = require('../models/db');
 const repo = require('../repositories/portfolio.repository');
+const logger = require('../utils/logger');
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -143,7 +144,7 @@ class PriceService {
         };
       }
     } catch (e) {
-      console.error('MF lookup failed:', e.message);
+      logger.error(`MF lookup failed: ${e.message}`);
     }
     return null;
   }
@@ -169,7 +170,7 @@ class PriceService {
         }))];
       }
     } catch (e) {
-      console.error('Equity search failed:', e.message);
+      logger.error(`Equity search failed: ${e.message}`);
     }
 
     // Also include MF if results are low or query looks like an Indian MF
@@ -194,7 +195,7 @@ class PriceService {
         const marketPrice = await this.adapters['EQUITY']().getPrice(exchangeTicker);
         if (marketPrice && marketPrice > 0) return marketPrice;
       } catch (e) {
-        console.log(`Market price unavailable for ${ticker}, falling back to spot gold calculation.`);
+        // Fallback to spot gold calculation
       }
 
       // Fallback: Calculate derived price from Spot Gold (XAU)
@@ -211,7 +212,7 @@ class PriceService {
         // Add a slight 'SGB premium' if desired, but spot gram is the most accurate base
         return inrPerGram;
       } catch (e) {
-        console.error('SGB fallback pricing failed:', e.message);
+        logger.error(`SGB fallback pricing failed: ${e.message}`);
       }
     }
 
@@ -254,7 +255,7 @@ class PriceService {
       return price;
     } catch (err) {
       if (!err.message.includes('Price not found') && !err.message.includes('API key not configured')) {
-        console.error(`[PriceService] Failed to fetch price for ${ticker}:`, err.message);
+        logger.error(`[PriceService] Failed to fetch price for ${ticker}: ${err.message}`);
       }
       // Fallback to stale cache if API fails
       if (cached) return cached.price;
@@ -288,7 +289,7 @@ class PriceService {
 
       return results;
     } catch (err) {
-      console.error('Search symbols failed:', err.message);
+      logger.error(`Search symbols failed: ${err.message}`);
       return [];
     }
   }
@@ -314,7 +315,7 @@ class PriceService {
       }
       return null;
     } catch (err) {
-      console.error('Fetch profile failed:', err.message);
+      logger.error(`Fetch profile failed: ${err.message}`);
       return null;
     }
   }

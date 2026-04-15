@@ -2,6 +2,7 @@ const repo = require('../repositories/portfolio.repository');
 const priceService = require('./PriceService');
 const currencyService = require('./CurrencyService');
 const { BrokerParserFactory } = require('./BrokerParser');
+const logger = require('../utils/logger');
 
 class PortfolioService {
 
@@ -24,7 +25,7 @@ class PortfolioService {
         }
       }
     } catch (err) {
-      console.error(`Failed to enrich asset ${ticker}:`, err.message);
+      logger.error(`Failed to enrich asset ${ticker}: ${err.message}`);
     }
   }
 
@@ -40,7 +41,7 @@ class PortfolioService {
         const priceType = (asset.type === 'GOLD' && asset.ticker.startsWith('SGB')) ? 'EQUITY' : asset.type;
         return priceService.fetchPrice(asset.ticker, priceType, asset.currency)
           .catch(err => {
-            console.error(`[Portfolio] Price fetch failed for ${asset.ticker}:`, err.message);
+            logger.error(`[Portfolio] Price fetch failed for ${asset.ticker}: ${err.message}`);
             return null;
           });
       }
@@ -181,7 +182,7 @@ class PortfolioService {
 
     const enrichFn = (assetId, ticker, type, name) => {
       this.triggerAssetEnrichment(assetId, ticker, type, name).catch(err => 
-        console.error('[Background Task] Enrichment failed for', ticker, ':', err.message)
+        logger.error(`[Background Task] Enrichment failed for ${ticker}: ${err.message}`)
       );
     };
     
@@ -201,7 +202,7 @@ class PortfolioService {
 
     const enrichFn = (assetId, ticker, type, name) => {
       this.triggerAssetEnrichment(assetId, ticker, type, name).catch(err => 
-        console.error('[Background Task] Enrichment failed for', ticker, ':', err.message)
+        logger.error(`[Background Task] Enrichment failed for ${ticker}: ${err.message}`)
       );
     };
     
@@ -234,13 +235,13 @@ class PortfolioService {
     const newName = asset.suggested_name || asset.name;
     const newTicker = asset.suggested_ticker || asset.ticker;
     
-    console.log(`[Service] Updating asset ${assetId}: ticker="${asset.ticker}" -> "${newTicker}", name="${asset.name}" -> "${newName}"`);
+    logger.info(`[Service] Updating asset ${assetId}: ticker="${asset.ticker}" -> "${newTicker}", name="${asset.name}" -> "${newName}"`);
     repo.applySuggestedName(assetId, newName, newTicker);
     return true;
   }
 
   ignoreSuggestion(assetId) {
-    console.log(`[Service] Ignoring suggestion for asset ${assetId}`);
+    logger.info(`[Service] Ignoring suggestion for asset ${assetId}`);
     repo.clearSuggestedName(assetId);
   }
 
@@ -248,7 +249,7 @@ class PortfolioService {
 
   async startBulkEnrichment() {
     const assets = repo.getEnrichableAssets();
-    console.log(`[Service] Starting bulk enrichment for ${assets.length} items (EQUITY + MF)`);
+    logger.info(`[Service] Starting bulk enrichment for ${assets.length} items (EQUITY + MF)`);
  
     // Process in background to prevent timeout
     (async () => {
@@ -257,9 +258,9 @@ class PortfolioService {
           await this.triggerAssetEnrichment(asset.id, asset.ticker, asset.type, asset.name);
           await new Promise(resolve => setTimeout(resolve, 500));
         }
-        console.log(`[Service] Bulk enrichment completed`);
+        logger.info(`[Service] Bulk enrichment completed`);
       } catch (err) {
-        console.error('[Background Task] Bulk enrichment process failed:', err.message);
+        logger.error(`[Background Task] Bulk enrichment process failed: ${err.message}`);
       }
     })();
  
