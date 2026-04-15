@@ -56,10 +56,13 @@ function initDb() {
     );
   `);
 
-  // Migration: Add suggested_name to assets if it doesn't exist
+  // Migration: Add suggested_name and suggested_ticker to assets if they don't exist
   const tableInfo = db.prepare("PRAGMA table_info(assets)").all();
   if (!tableInfo.some(col => col.name === 'suggested_name')) {
     db.exec("ALTER TABLE assets ADD COLUMN suggested_name TEXT");
+  }
+  if (!tableInfo.some(col => col.name === 'suggested_ticker')) {
+    db.exec("ALTER TABLE assets ADD COLUMN suggested_ticker TEXT");
   }
 
   // Migration: Add fx_rates JSON column to networth_snapshots for historical currency conversion

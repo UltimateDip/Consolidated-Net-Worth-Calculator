@@ -62,11 +62,17 @@ class PortfolioRepository {
   }
 
   getAssetWithSuggestion(id) {
-    return db.prepare('SELECT name, suggested_name FROM assets WHERE id = ?').get(id);
+    return db.prepare('SELECT name, suggested_name, ticker, suggested_ticker FROM assets WHERE id = ?').get(id);
   }
 
-  applySuggestedName(id, newName) {
-    db.prepare('UPDATE assets SET name = ?, suggested_name = NULL WHERE id = ?').run(newName, id);
+  applySuggestedName(id, newName, newTicker) {
+    if (newTicker) {
+      db.prepare('UPDATE assets SET name = ?, ticker = ?, suggested_name = NULL, suggested_ticker = NULL WHERE id = ?')
+        .run(newName, newTicker, id);
+    } else {
+      db.prepare('UPDATE assets SET name = ?, suggested_name = NULL, suggested_ticker = NULL WHERE id = ?')
+        .run(newName, id);
+    }
   }
 
   clearSuggestedName(id) {
@@ -77,8 +83,13 @@ class PortfolioRepository {
     db.prepare('UPDATE assets SET suggested_name = ? WHERE id = ?').run(suggestedName, id);
   }
 
-  getAllEquityAssets() {
-    return db.prepare("SELECT id, ticker FROM assets WHERE type = 'EQUITY'").all();
+  updateSuggestedNameAndTicker(id, suggestedName, suggestedTicker) {
+    db.prepare('UPDATE assets SET suggested_name = ?, suggested_ticker = ? WHERE id = ?')
+      .run(suggestedName, suggestedTicker, id);
+  }
+
+  getEnrichableAssets() {
+    return db.prepare("SELECT id, ticker, type, name FROM assets WHERE type IN ('EQUITY', 'MF')").all();
   }
 
   // ─── Holdings History ───────────────────────────────────────
@@ -132,9 +143,9 @@ class PortfolioRepository {
         if (item.currentPrice !== undefined && item.currentPrice !== null) {
           insertPriceCache.run(item.ticker, item.currentPrice);
         }
-
-        if (item.type === 'EQUITY' && triggerEnrichmentFn) {
-          triggerEnrichmentFn(asset.id, item.ticker);
+        
+        if (triggerEnrichmentFn && (item.type === 'EQUITY' || item.type === 'MF')) {
+          triggerEnrichmentFn(asset.id, item.ticker, item.type, item.name);
         }
       }
     })();
@@ -163,9 +174,9 @@ class PortfolioRepository {
       }
 
       this.insertHoldingHistory(assetId, units, price, currency, 'UPDATE');
-
-      if (type === 'EQUITY' && ticker && triggerEnrichmentFn) {
-        triggerEnrichmentFn(assetId, ticker);
+      
+      if (triggerEnrichmentFn && (type === 'EQUITY' || type === 'MF')) {
+        triggerEnrichmentFn(assetId, ticker, type, name);
       }
     })();
 
