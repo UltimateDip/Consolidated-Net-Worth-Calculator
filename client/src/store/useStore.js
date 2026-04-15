@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-// Use environment variable or default to localhost for dev
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import * as api from '../api/portfolioApi';
 
 const useStore = create(persist((set, get) => ({
   baseCurrency: 'USD',
@@ -16,9 +14,7 @@ const useStore = create(persist((set, get) => ({
   fetchPortfolio: async () => {
     set({ isLoading: true, error: null });
     try {
-      const res = await fetch(`${API_URL}/portfolio`);
-      if (!res.ok) throw new Error('Failed to fetch portfolio');
-      const data = await res.json();
+      const data = await api.fetchPortfolioSummary();
       set({ 
         baseCurrency: data.baseCurrency, 
         totalNetWorth: data.totalNetWorth, 
@@ -34,9 +30,7 @@ const useStore = create(persist((set, get) => ({
 
   fetchSettings: async () => {
     try {
-      const res = await fetch(`${API_URL}/settings`);
-      if (!res.ok) throw new Error('Failed to fetch settings');
-      const data = await res.json();
+      const data = await api.fetchSettings();
       set({ settings: data });
     } catch (error) {
        console.error("Error fetching settings", error);
@@ -45,16 +39,11 @@ const useStore = create(persist((set, get) => ({
 
   updateSetting: async (key, value) => {
     try {
-      await fetch(`${API_URL}/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, value })
-      });
-      // Update local state locally before re-fetching might be faster, but let's just refetch.
-      get().fetchSettings();
+      await api.updateSetting(key, value);
+      await get().fetchSettings();
       // If base currency changed, refresh portfolio
       if (key === 'BASE_CURRENCY') {
-         get().fetchPortfolio();
+         await get().fetchPortfolio();
       }
     } catch (error) {
       console.error("Error updating setting", error);
@@ -63,9 +52,7 @@ const useStore = create(persist((set, get) => ({
 
   fetchHistory: async () => {
     try {
-      const res = await fetch(`${API_URL}/history`);
-      if (!res.ok) throw new Error('Failed to fetch history');
-      const data = await res.json();
+      const data = await api.fetchPortfolioHistory();
       set({ portfolioHistory: data });
     } catch (error) {
       console.error('Error fetching history', error);
@@ -73,24 +60,13 @@ const useStore = create(persist((set, get) => ({
   },
   
   addOrUpdateHolding: async (payload) => {
-     try {
-       const res = await fetch(`${API_URL}/holdings`, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(payload)
-       });
-       if (!res.ok) throw new Error('Failed to update holding');
-       get().fetchPortfolio();
-       return true;
-     } catch (error) {
-       console.error("Error updating holding", error);
-       return false;
-     }
+    await api.addOrUpdateHolding(payload);
+    await get().fetchPortfolio();
+    return true;
   }
 }), {
-  name: 'networth-storage', // unique name for localStorage key
+  name: 'networth-storage', 
   partialize: (state) => ({ 
-      // Only persist the non-volatile elements so that the Dashboard can render instantly from cache
       assets: state.assets, 
       totalNetWorth: state.totalNetWorth, 
       baseCurrency: state.baseCurrency,

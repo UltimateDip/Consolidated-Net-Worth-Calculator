@@ -2,6 +2,8 @@ import { useState } from 'react';
 import useStore from '../store/useStore';
 import { UploadCloud, Info } from 'lucide-react';
 
+import * as api from '../api/portfolioApi';
+
 // Reusable Tooltip 
 const Tooltip = ({ children }) => (
   <div className="tooltip-container" style={{ position: 'relative', display: 'inline-block', marginLeft: '8px', cursor: 'pointer' }}>
@@ -34,29 +36,18 @@ const BrokerImport = () => {
   const [broker, setBroker] = useState('zerodha');
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('');
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
   const handleImport = async (e) => {
     e.preventDefault();
     if (!file) return;
 
     setStatus('Uploading...');
-    const formData = new FormData();
-    formData.append('file', file);
 
     try {
-      const res = await fetch(`${API_URL}/import/${broker}`, {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setStatus(`Successfully imported ${data.count} records!`);
-        fetchPortfolio(); // refresh data
-        setFile(null);
-      } else {
-        setStatus(`Error: ${data.error}`);
-      }
+      const data = await api.importBrokerFile(broker, file);
+      setStatus(`Successfully imported ${data.count} records!`);
+      fetchPortfolio(); // refresh data
+      setFile(null);
     } catch (error) {
       setStatus(`Import failed: ${error.message}`);
     }

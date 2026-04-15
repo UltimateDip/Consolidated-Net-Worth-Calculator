@@ -3,30 +3,8 @@ import useStore from '../store/useStore';
 import ManualEntry from '../components/ManualEntry';
 import BrokerImport from '../components/BrokerImport';
 import { Eye, Edit3, ChevronRight, ArrowDownWideNarrow } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-
-const formatCurrency = (amount, currency = 'USD') => {
-  try {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: currency,
-      maximumFractionDigits: 2,
-    }).format(amount || 0);
-  } catch {
-    return `${currency} ${(amount || 0).toLocaleString()}`;
-  }
-};
-
-const TYPE_COLORS = {
-  EQUITY: '#10b981',
-  MF: '#6366f1',
-  CRYPTO: '#f59e0b',
-  GOLD: '#ec4899',
-  SILVER: '#8b5cf6',
-  CASH: '#06b6d4',
-  OTHER: '#94a3b8',
-};
+import { formatCurrency, TYPE_COLORS } from '../utils/formatters';
+import * as api from '../api/portfolioApi';
 
 const ManageAssets = () => {
   const { assets, baseCurrency, fetchPortfolio } = useStore();
@@ -52,13 +30,7 @@ const ManageAssets = () => {
   const handleApplySuggestion = async (id) => {
     setProcessingId(id);
     try {
-      const url = `${API_URL}/assets/${id}/apply-suggestion`;
-      console.log(`[UI] Calling ${url}`);
-      const res = await fetch(url, { method: 'POST' });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server responded with ${res.status}`);
-      }
+      await api.applySuggestion(id);
       await fetchPortfolio();
     } catch (err) {
       console.error('Failed to apply suggestion', err);
@@ -71,9 +43,7 @@ const ManageAssets = () => {
   const handleIgnoreSuggestion = async (id) => {
     setProcessingId(id);
     try {
-      const url = `${API_URL}/assets/${id}/ignore-suggestion`;
-      const res = await fetch(url, { method: 'POST' });
-      if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+      await api.ignoreSuggestion(id);
       await fetchPortfolio();
     } catch (err) {
       console.error('Failed to ignore suggestion', err);
