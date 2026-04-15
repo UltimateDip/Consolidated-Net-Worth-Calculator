@@ -88,9 +88,6 @@ class MetalPriceAdapter extends PriceAdapter {
     throw new Error('Metal price not found');
   }
 }
-    throw new Error('Metal price not found');
-  }
-}
 
 class MFAdapter extends PriceAdapter {
   async getPrice(ticker) {
