@@ -7,11 +7,21 @@ class PortfolioService {
 
   // ─── Asset Enrichment ───────────────────────────────────────
 
-  async triggerAssetEnrichment(assetId, ticker) {
+  async triggerAssetEnrichment(assetId, ticker, type, currentName) {
     try {
-      const profile = await priceService.fetchProfile(ticker);
-      if (profile && profile.name) {
-        repo.updateSuggestedName(assetId, profile.name);
+      if (type === 'EQUITY') {
+        const profile = await priceService.fetchProfile(ticker);
+        if (profile && profile.name && profile.name !== currentName) {
+          repo.updateSuggestedName(assetId, profile.name);
+        }
+      } else if (type === 'MF') {
+        // If it's a mutual fund and doesn't have a numeric ticker, try to find the AMFI code
+        if (!/^\d+$/.test(ticker)) {
+          const lookup = await priceService.findMFCodeByName(currentName);
+          if (lookup && (lookup.name !== currentName || lookup.ticker !== ticker)) {
+            repo.updateSuggestedNameAndTicker(assetId, lookup.name, lookup.ticker);
+          }
+        }
       }
     } catch (err) {
       console.error(`Failed to enrich asset ${ticker}:`, err.message);
@@ -216,11 +226,14 @@ class PortfolioService {
 
   applySuggestion(assetId) {
     const asset = repo.getAssetWithSuggestion(assetId);
-    if (!asset || !asset.suggested_name) {
+    if (!asset || (!asset.suggested_name && !asset.suggested_ticker)) {
       return null;
     }
-    console.log(`[Service] Updating name from "${asset.name}" to "${asset.suggested_name}"`);
-    repo.applySuggestedName(assetId, asset.suggested_name);
+    const newName = asset.suggested_name || asset.name;
+    const newTicker = asset.suggested_ticker || asset.ticker;
+    
+    console.log(`[Service] Updating asset ${assetId}: ticker="${asset.ticker}"->"/${newTicker}", name="${asset.name}"->"${newName}"`);
+    repo.applySuggestedName(assetId, newName, newTicker);
     return true;
   }
 
@@ -232,14 +245,14 @@ class PortfolioService {
   // ─── Bulk Enrichment ───────────────────────────────────────
 
   async startBulkEnrichment() {
-    const assets = repo.getAllEquityAssets();
-    console.log(`[Service] Starting bulk enrichment for ${assets.length} items`);
-
+    const assets = repo.getEnrichableAssets();
+    console.log(`[Service] Starting bulk enrichment for ${assets.length} items (EQUITY + MF)`);
+ 
     // Process in background to prevent timeout
     (async () => {
       try {
         for (const asset of assets) {
-          await this.triggerAssetEnrichment(asset.id, asset.ticker);
+          await this.triggerAssetEnrichment(asset.id, asset.ticker, asset.type, asset.name);
           await new Promise(resolve => setTimeout(resolve, 500));
         }
         console.log(`[Service] Bulk enrichment completed`);
@@ -247,7 +260,7 @@ class PortfolioService {
         console.error('[Background Task] Bulk enrichment process failed:', err.message);
       }
     })();
-
+ 
     return assets.length;
   }
 }

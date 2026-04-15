@@ -41,6 +41,27 @@ class CoinGeckoAdapter extends PriceAdapter {
   }
 }
 
+class YahooFinanceAdapter extends PriceAdapter {
+  async getPrice(ticker) {
+    // Yahoo Finance works well for Indian stocks with .NS or .BO suffix
+    try {
+      const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      });
+      const data = await res.json();
+      const result = data.chart?.result?.[0];
+      if (result && result.meta?.regularMarketPrice) {
+        return result.meta.regularMarketPrice;
+      }
+      throw new Error('Price not found in Yahoo Finance');
+    } catch (e) {
+      throw new Error(`Yahoo Finance fetch failed: ${e.message}`);
+    }
+  }
+}
+
 class MetalPriceAdapter extends PriceAdapter {
   constructor(apiKey) {
     super();
@@ -101,6 +122,23 @@ class PriceService {
   getSetting(key) {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
     return row ? row.value : null;
+  }
+
+  async findMFCodeByName(name) {
+    try {
+      const mfAdapter = new MFAdapter();
+      const results = await mfAdapter.search(name);
+      if (results && results.length > 0) {
+        // Return the best match (first one)
+        return {
+          ticker: results[0].symbol,
+          name: results[0].description
+        };
+      }
+    } catch (e) {
+      console.error('MF lookup failed:', e.message);
+    }
+    return null;
   }
 
   async searchSymbols(query, type) {
@@ -180,13 +218,22 @@ class PriceService {
     }
 
     // Fetch from adapter
-    const getAdapter = this.adapters[type];
-    if (!getAdapter) {
-      // If no adapter (like for MF), fall back to the last known cached price (from import)
-      return cached ? cached.price : null;
+    let adapter;
+    if (type === 'EQUITY') {
+      // Use Yahoo Finance for Indian stocks to avoid Finnhub regional restrictions on free tier
+      if (ticker.endsWith('.NS') || ticker.endsWith('.BO') || currency === 'INR') {
+        adapter = new YahooFinanceAdapter();
+      } else {
+        adapter = this.adapters['EQUITY']();
+      }
+    } else {
+      const getAdapter = this.adapters[type];
+      if (!getAdapter) {
+        return cached ? cached.price : null;
+      }
+      adapter = getAdapter();
     }
 
-    const adapter = getAdapter();
     try {
       const price = await adapter.getPrice(ticker, currency);
 
@@ -246,7 +293,19 @@ class PriceService {
     try {
       const res = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${apiKey}`);
       const data = await res.json();
-      return data && data.name ? data : null;
+      
+      if (data && data.name) return data;
+      
+      // Fallback for non-US stocks (Free tier restriction)
+      if (!data || !data.name || res.status === 403) {
+        const searchRes = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(ticker)}&token=${apiKey}`);
+        const searchData = await searchRes.json();
+        const match = (searchData.result || []).find(r => r.symbol === ticker || r.displaySymbol === ticker);
+        if (match && match.description) {
+          return { name: match.description };
+        }
+      }
+      return null;
     } catch (err) {
       console.error('Fetch profile failed:', err.message);
       return null;
