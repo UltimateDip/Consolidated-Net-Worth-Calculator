@@ -1,3 +1,5 @@
+const logger = require('../utils/logger');
+
 class CurrencyService {
     constructor() {
         this.cache = {}; // Simple in-memory cache to prevent spamming
@@ -31,11 +33,11 @@ class CurrencyService {
                 this.cache[`${to}_${from}`] = { rate: 1 / rate, timestamp: now };
                 return rate;
             } else {
-                console.warn(`[CurrencyService] Rate not found for ${from} to ${to}`);
+                logger.warn(`[CurrencyService] Rate not found for ${from} to ${to}`);
                 return 1;
             }
         } catch (error) {
-            console.error(`[CurrencyService] Error fetching explicit fx rate: ${error.message}`);
+            logger.error(`[CurrencyService] Error fetching explicit fx rate: ${error.message}`);
             return 1; // Fallback to 1:1 safely
         }
     }

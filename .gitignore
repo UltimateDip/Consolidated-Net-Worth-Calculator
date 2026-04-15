@@ -24,4 +24,10 @@ private-assets/
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db
+# Logs
+server/logs/
+*.log
+
+# Cache
+server/.npm-cache/
+
