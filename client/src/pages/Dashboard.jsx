@@ -9,7 +9,29 @@ import TopHoldingsChart from '../components/dashboard/TopHoldingsChart';
 import PortfolioHistoryChart from '../components/dashboard/PortfolioHistoryChart';
 
 const Dashboard = () => {
-  const { totalNetWorth, baseCurrency, assets, isLoading, portfolioHistory } = useStore();
+  const { 
+    totalNetWorth, 
+    baseCurrency, 
+    assets, 
+    isLoading, 
+    portfolioHistory,
+    autoRefresh,
+    setAutoRefresh,
+    fetchPortfolioSilent
+  } = useStore();
+
+  // --- Auto Refresh Logic ---
+  React.useEffect(() => {
+    let intervalId;
+    if (autoRefresh) {
+      intervalId = setInterval(() => {
+        fetchPortfolioSilent();
+      }, 10000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [autoRefresh, fetchPortfolioSilent]);
 
   // --- Derived Data ---
 
@@ -76,6 +98,8 @@ const Dashboard = () => {
         largest={largest} 
         largestPct={largestPct} 
         topClass={topClass} 
+        autoRefresh={autoRefresh}
+        setAutoRefresh={setAutoRefresh}
       />
       
       <AllocationCharts 

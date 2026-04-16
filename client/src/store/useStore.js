@@ -8,8 +8,11 @@ const useStore = create(persist((set, get) => ({
   assets: [],
   portfolioHistory: [],
   settings: {},
+  autoRefresh: false,
   isLoading: false,
   error: null,
+
+  setAutoRefresh: (val) => set({ autoRefresh: val }),
 
   fetchPortfolio: async () => {
     set({ isLoading: true, error: null });
@@ -25,6 +28,19 @@ const useStore = create(persist((set, get) => ({
       get().fetchHistory();
     } catch (error) {
       set({ error: error.message, isLoading: false });
+    }
+  },
+
+  fetchPortfolioSilent: async () => {
+    try {
+      const data = await api.fetchPortfolioSummary();
+      set({ 
+        baseCurrency: data.baseCurrency, 
+        totalNetWorth: data.totalNetWorth, 
+        assets: data.assets
+      });
+    } catch (error) {
+      console.error('Silent refresh failed', error);
     }
   },
 

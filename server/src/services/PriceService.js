@@ -219,9 +219,7 @@ class PriceService {
     // Check Cache
     const cached = db.prepare('SELECT price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
     if (cached) {
-      // Mutual Fund NAVs change once a day, so we can cache them longer (24h) than stocks (1h)
-      const ttl = type === 'MF' ? 24 * 60 * 60 * 1000 : CACHE_TTL_MS;
-      const isFresh = (new Date() - new Date(cached.timestamp)) < ttl;
+      const isFresh = (new Date() - new Date(cached.timestamp)) < CACHE_TTL_MS;
       if (isFresh) return cached.price;
     }
 

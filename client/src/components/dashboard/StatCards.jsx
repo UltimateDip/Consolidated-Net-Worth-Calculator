@@ -1,8 +1,19 @@
 import React from 'react';
 import { Briefcase, RefreshCw, TrendingUp, BarChart3, Coins, PieChart as PieIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+import AnimatedCounter from '../common/AnimatedCounter';
 
-const StatCards = ({ totalNetWorth, baseCurrency, isLoading, assets, largest, largestPct, topClass }) => {
+const StatCards = ({ 
+  totalNetWorth, 
+  baseCurrency, 
+  isLoading, 
+  assets, 
+  largest, 
+  largestPct, 
+  topClass,
+  autoRefresh,
+  setAutoRefresh
+}) => {
   return (
     <>
       {/* ========= TOP BANNER ========= */}
@@ -18,22 +29,33 @@ const StatCards = ({ totalNetWorth, baseCurrency, isLoading, assets, largest, la
             <Briefcase size={20} /> Total Net Worth
           </p>
           <h1 style={{ fontSize: '3rem', margin: '10px 0 0 0', color: 'var(--accent-primary)' }}>
-            {formatCurrency(totalNetWorth, baseCurrency)}
+            <AnimatedCounter value={totalNetWorth} currency={baseCurrency} />
           </h1>
         </div>
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Auto-Refresh</span>
+             <label className="switch">
+                <input 
+                  type="checkbox" 
+                  checked={autoRefresh} 
+                  onChange={(e) => setAutoRefresh(e.target.checked)} 
+                />
+                <span className="slider"></span>
+             </label>
+          </div>
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            color: isLoading ? 'var(--text-secondary)' : 'var(--accent-success)',
-            backgroundColor: isLoading ? 'rgba(255, 255, 255, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+            color: isLoading ? 'var(--text-secondary)' : (autoRefresh ? 'var(--accent-success)' : 'var(--text-muted)'),
+            backgroundColor: isLoading ? 'rgba(255, 255, 255, 0.1)' : (autoRefresh ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.05)'),
             padding: '5px 12px',
             borderRadius: '20px',
-            fontSize: '0.9rem',
+            fontSize: '0.8rem',
           }}>
-            {isLoading ? <RefreshCw size={14} className="spin" /> : <TrendingUp size={14} />}
-            {isLoading ? 'Syncing...' : 'Live Sync'}
+            {isLoading ? <RefreshCw size={12} className="spin" /> : <TrendingUp size={12} />}
+            {isLoading ? 'Syncing...' : (autoRefresh ? 'Monitoring Live' : 'Manual Refresh')}
           </div>
         </div>
       </div>
@@ -43,7 +65,9 @@ const StatCards = ({ totalNetWorth, baseCurrency, isLoading, assets, largest, la
         <div className="glass-panel" style={{ textAlign: 'center' }}>
           <Coins size={24} style={{ color: 'var(--accent-primary)', marginBottom: '8px' }} />
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Tracked Assets</p>
-          <h2 style={{ fontSize: '2rem', margin: '4px 0 0' }}>{assets.length}</h2>
+          <h2 style={{ fontSize: '2rem', margin: '4px 0 0' }}>
+            {assets.length}
+          </h2>
         </div>
         <div className="glass-panel" style={{ textAlign: 'center' }}>
           <BarChart3 size={24} style={{ color: '#f59e0b', marginBottom: '8px' }} />
