@@ -22,7 +22,13 @@ const PortfolioHistoryChart = ({ historyData, baseCurrency }) => {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis dataKey="date" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} />
-            <YAxis tickFormatter={formatCompact} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} />
+            <YAxis 
+              tickFormatter={formatCompact} 
+              tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} 
+              axisLine={false}
+              domain={['auto', 'auto']}
+              hide={false}
+            />
             <Tooltip content={<GlassTooltip currency={baseCurrency} />} />
             <Area
               type="monotone"
