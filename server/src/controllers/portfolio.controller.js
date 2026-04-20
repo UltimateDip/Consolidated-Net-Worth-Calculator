@@ -34,9 +34,9 @@ class PortfolioController {
 
   // POST /api/holdings
   addHolding = asyncHandler((req, res) => {
-    const { id, name, ticker, type, units, price, currency } = req.body;
+    const { id, name, ticker, type, units, price, currency, manualPrice } = req.body;
     try {
-      const assetId = portfolioService.addOrUpdateHolding({ id, name, ticker, type, units, price, currency });
+      const assetId = portfolioService.addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice });
       res.json({ success: true, id: assetId });
     } catch (err) {
       if (err.message === 'COLLISION') {

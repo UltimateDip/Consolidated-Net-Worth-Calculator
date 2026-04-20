@@ -5,7 +5,7 @@ import { X, Search, CheckCircle, AlertCircle, RefreshCcw } from 'lucide-react';
 import * as api from '../api/portfolioApi';
 import { formatCurrency } from '../utils/formatters';
 
-const CURRENCIES = ['USD', 'INR', 'EUR', 'GBP', 'BTC', 'ETH'];
+const CURRENCIES = ['USD', 'INR', 'EUR', 'GBP'];
 
 const ManualEntry = ({ assetToEdit, onClearEdit }) => {
   const { addOrUpdateHolding, baseCurrency, fetchPortfolio } = useStore();
@@ -16,6 +16,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     type: 'CASH',
     units: '',
     price: '',
+    manualPrice: '',
     totalInvested: '',
     currency: baseCurrency
   };
@@ -36,6 +37,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
         type: assetToEdit.type || 'CASH',
         units: assetToEdit.current_units || '',
         price: assetToEdit.avg_price || '',
+        manualPrice: assetToEdit.manualPrice || '',
         totalInvested: '',
         currency: assetToEdit.currency || baseCurrency
       });
@@ -48,7 +50,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    if (name === 'ticker' && (formData.type === 'EQUITY' || formData.type === 'CRYPTO' || formData.type === 'MF')) {
+    if (name === 'ticker' && (formData.type === 'EQUITY' || formData.type === 'MF')) {
       handleSearch(value, formData.type);
     }
   };
@@ -110,7 +112,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     setStatus('Saving...');
 
     let finalUnits = parseFloat(formData.units);
-    if (['GOLD', 'SILVER'].includes(formData.type) && isNaN(finalUnits) && formData.totalInvested) {
+    if (formData.type === 'GOLD' && isNaN(finalUnits) && formData.totalInvested) {
         const invested = parseFloat(formData.totalInvested);
         const manualPrice = parseFloat(formData.price);
         if (!isNaN(invested) && !isNaN(manualPrice) && manualPrice > 0) {
@@ -122,7 +124,8 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
         id: assetToEdit?.id,
         ...formData,
         units: finalUnits,
-        price: formData.price ? parseFloat(formData.price) : null
+        price: formData.price ? parseFloat(formData.price) : null,
+        manualPrice: formData.manualPrice ? parseFloat(formData.manualPrice) : null
     };
     
     try {
@@ -140,7 +143,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
   };
 
   const isCash = formData.type === 'CASH';
-  const isMetal = formData.type === 'GOLD' || formData.type === 'SILVER';
+  const isMetal = formData.type === 'GOLD';
 
   return (
     <div className="glass-panel animate-fade-in" style={{ position: 'relative' }}>
@@ -163,9 +166,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
                     <option value="CASH">Cash</option>
                     <option value="EQUITY">Equity / Stock</option>
                     <option value="MF">Mutual Fund</option>
-                    <option value="CRYPTO">Crypto</option>
                     <option value="GOLD">Gold</option>
-                    <option value="SILVER">Silver</option>
                 </select>
             </div>
             <div>
@@ -175,7 +176,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-            {!isCash && !isMetal && (
+            {!isCash && (
               <div style={{ position: 'relative' }}>
                   <label style={{ display: 'flex', justifyContent: 'space-between' }}>
                     Ticker ID
@@ -231,7 +232,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
             )}
             
             <div>
-                <label>{isCash ? "Total Amount / Balance" : isMetal ? "Weight (Ounces)" : "Total Units / Shares"}</label>
+                <label>{isCash ? "Total Amount / Balance" : isMetal ? "Weight (Grams)" : "Total Units / Shares"}</label>
                 <input type="number" step="any" name="units" value={formData.units} onChange={handleChange} placeholder={isMetal ? "e.g. 5" : "e.g. 50"} required={!isMetal || !formData.totalInvested} />
             </div>
         </div>
@@ -239,7 +240,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
             {!isCash && (
               <div>
-                  <label>{isMetal ? "Purchase Price per Oz" : "Avg Price per unit"}</label>
+                  <label>{isMetal ? "Purchase Price per Gram" : "Avg Price per unit"}</label>
                   <input type="number" step="any" name="price" value={formData.price} onChange={handleChange} placeholder="Price will auto-fill if verified" required={isMetal && !formData.units && formData.totalInvested} />
               </div>
             )}
@@ -251,6 +252,33 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
                 </select>
             </div>
         </div>
+
+        {/* Manual Fallback Price Section */}
+        {!isCash && (
+          <div style={{ 
+            padding: '15px', 
+            background: 'rgba(255, 193, 7, 0.05)', 
+            border: '1px solid rgba(255, 193, 7, 0.1)', 
+            borderRadius: '12px',
+            marginTop: '5px'
+          }}>
+            <label style={{ color: 'var(--accent-warning)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <AlertCircle size={14} /> Fallback Market Price (Optional)
+            </label>
+            <input 
+              type="number" 
+              step="any" 
+              name="manualPrice" 
+              value={formData.manualPrice} 
+              onChange={handleChange} 
+              placeholder="Enter current market price if auto-refresh fails" 
+              style={{ background: 'rgba(0,0,0,0.2)' }}
+            />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: '1.4' }}>
+              If our live data provider (Yahoo Finance/Finnhub) fails to find a price for your ticker, this price will be used for your portfolio valuation instead. It automatically clears if the live data becomes available again.
+            </p>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button type="submit" className="btn-primary" style={{ flex: 1 }}>Save Holding</button>

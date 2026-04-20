@@ -37,9 +37,11 @@ class PortfolioService {
 
     // --- Phase 1: Fetch all live prices concurrently ---
     const pricePromises = assets.map(asset => {
-      if (['EQUITY', 'MF', 'CRYPTO', 'GOLD', 'SILVER'].includes(asset.type)) {
-        const priceType = (asset.type === 'GOLD' && asset.ticker.startsWith('SGB')) ? 'EQUITY' : asset.type;
-        return priceService.fetchPrice(asset.ticker, priceType, asset.currency)
+      if (asset.type === 'CASH') {
+        return Promise.resolve(1);
+      }
+      if (['EQUITY', 'MF', 'GOLD'].includes(asset.type)) {
+        return priceService.fetchPrice(asset.ticker, asset.type, asset.currency)
           .catch(err => {
             logger.error(`[Portfolio] Price fetch failed for ${asset.ticker}: ${err.message}`);
             return null;
@@ -69,15 +71,25 @@ class PortfolioService {
     // --- Phase 3: Assemble enriched portfolio ---
     let totalNetWorth = 0;
     const enrichedAssets = assets.map((asset, i) => {
-      let currentPrice = livePrices[i] || asset.avg_price || 1;
+      const priceFromService = livePrices[i];
+      const details = priceService.getPriceDetails(asset.ticker);
+      
+      let priceStatus = 'AUTOMATED';
+      if (priceFromService === null) {
+        priceStatus = 'FAILED';
+      } else if (details && details.manual_price !== null && details.manual_price !== undefined) {
+        priceStatus = 'MANUAL';
+      }
 
+      const currentPrice = priceFromService || asset.avg_price || 0;
       let finalPrice = currentPrice;
       const assetCurrency = asset.currency || 'USD';
+      
       if (assetCurrency !== baseCurrency) {
         finalPrice = currentPrice * (fxRateMap[assetCurrency] || 1);
       }
 
-      const totalValue = finalPrice * asset.current_units;
+      const totalValue = finalPrice * (asset.current_units || 0);
       totalNetWorth += totalValue;
 
       return {
@@ -85,6 +97,8 @@ class PortfolioService {
         currentPrice: finalPrice,
         originalPrice: currentPrice,
         totalValue,
+        priceStatus,
+        manualPrice: details ? details.manual_price : null
       };
     });
 
@@ -161,15 +175,11 @@ class PortfolioService {
 
   // ─── Manual Holding ─────────────────────────────────────────
 
-  addOrUpdateHolding({ id, name, ticker, type, units, price, currency }) {
+  addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice }) {
     // Auto-generate missing tickers based on type
     if (!ticker || ticker.trim() === '') {
       if (type === 'CASH') {
         ticker = `CASH_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
-      } else if (type === 'GOLD') {
-        ticker = 'XAU';
-      } else if (type === 'SILVER') {
-        ticker = 'XAG';
       } else {
         throw new Error('TICKER_REQUIRED');
       }
@@ -186,12 +196,10 @@ class PortfolioService {
       );
     };
     
-    const assetId = repo.upsertHolding(
-      { id, name, ticker, type, units, price, currency: currency || 'USD' },
+    return repo.upsertHolding(
+      { id, name, ticker, type, units, price, currency: currency || 'USD', manualPrice },
       enrichFn
     );
-
-    return assetId;
   }
 
   // ─── Broker Import ──────────────────────────────────────────

@@ -70,6 +70,12 @@ function initDb() {
   if (!snapshotInfo.some(col => col.name === 'fx_rates')) {
     db.exec("ALTER TABLE networth_snapshots ADD COLUMN fx_rates TEXT");
   }
+
+  // Migration: Add manual_price to price_cache
+  const priceCacheInfo = db.prepare("PRAGMA table_info(price_cache)").all();
+  if (!priceCacheInfo.some(col => col.name === 'manual_price')) {
+    db.exec("ALTER TABLE price_cache ADD COLUMN manual_price REAL");
+  }
 }
 
 initDb();

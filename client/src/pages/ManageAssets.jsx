@@ -2,7 +2,7 @@ import { useState } from 'react';
 import useStore from '../store/useStore';
 import ManualEntry from '../components/ManualEntry';
 import BrokerImport from '../components/BrokerImport';
-import { Eye, Edit3, ChevronRight, ArrowDownWideNarrow } from 'lucide-react';
+import { Eye, Edit3, ChevronRight, ArrowDownWideNarrow, AlertCircle } from 'lucide-react';
 import { formatCurrency, TYPE_COLORS } from '../utils/formatters';
 import * as api from '../api/portfolioApi';
 
@@ -146,7 +146,25 @@ const ManageAssets = () => {
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.2)'}
                 >
                   <div style={{ flex: 1 }}>
-                    <strong style={{ display: 'block', fontSize: '1rem' }}>{asset.name}</strong>
+                    <strong style={{ display: 'block', fontSize: '1rem' }}>
+                      {asset.name}
+                      {asset.type !== 'CASH' && asset.priceStatus && asset.priceStatus !== 'AUTOMATED' && (
+                        <span style={{ 
+                          fontSize: '0.65rem', 
+                          padding: '2px 6px', 
+                          borderRadius: '4px',
+                          marginLeft: '8px',
+                          backgroundColor: asset.priceStatus === 'MANUAL' ? 'rgba(255, 193, 7, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                          color: asset.priceStatus === 'MANUAL' ? 'var(--accent-warning)' : 'var(--accent-danger)',
+                          border: `1px solid ${asset.priceStatus === 'MANUAL' ? 'rgba(255, 193, 7, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                          textTransform: 'uppercase',
+                          verticalAlign: 'middle',
+                          fontWeight: '600'
+                        }}>
+                          {asset.priceStatus === 'MANUAL' ? 'Manual' : asset.priceStatus}
+                        </span>
+                      )}
+                    </strong>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       {asset.type === 'CASH' && (
                         <>{asset.currency || baseCurrency} Balance</>
@@ -157,13 +175,10 @@ const ManageAssets = () => {
                       {asset.type === 'MF' && (
                         <>{parseFloat(asset.current_units).toFixed(2)} Units • {asset.currency || baseCurrency}</>
                       )}
-                      {asset.type === 'CRYPTO' && (
-                        <>{parseFloat(asset.current_units).toFixed(4)} • {asset.ticker} • {asset.currency || baseCurrency}</>
+                      {asset.type === 'GOLD' && (
+                        <>{parseFloat(asset.current_units).toFixed(2)} Grams • {asset.currency || baseCurrency}</>
                       )}
-                      {(asset.type === 'GOLD' || asset.type === 'SILVER') && (
-                        <>{parseFloat(asset.current_units).toFixed(2)} oz • {asset.currency || baseCurrency}</>
-                      )}
-                      {!['CASH', 'EQUITY', 'MF', 'CRYPTO', 'GOLD', 'SILVER'].includes(asset.type) && (
+                      {!['CASH', 'EQUITY', 'MF', 'GOLD'].includes(asset.type) && (
                         <>{parseFloat(asset.current_units).toFixed(2)} Units • {asset.currency || baseCurrency}</>
                       )}
                     </span>
@@ -176,7 +191,7 @@ const ManageAssets = () => {
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                         {asset.type === 'MF' ? 'NAV ' : ''}
                         {formatCurrency(asset.originalPrice, asset.currency || baseCurrency)}
-                        {asset.type === 'EQUITY' ? '/share' : asset.type === 'MF' ? '' : '/unit'}
+                        {asset.type === 'EQUITY' ? '/share' : asset.type === 'MF' ? '' : asset.type === 'GOLD' ? '/gram' : '/unit'}
                       </span>
                     )}
                   </div>
@@ -196,6 +211,31 @@ const ManageAssets = () => {
                     </button>
                   )}
                 </div>
+
+                {/* Price Status Nudges */}
+                {!isEditMode && asset.priceStatus === 'FAILED' && asset.type !== 'CASH' && (
+                  <div 
+                    onClick={() => { setIsEditMode(true); handleEditClick(asset); }}
+                    style={{
+                      marginTop: '8px',
+                      marginLeft: '20px',
+                      padding: '10px 16px',
+                      background: 'rgba(255, 193, 7, 0.05)',
+                      border: '1px solid rgba(255, 193, 7, 0.1)',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <AlertCircle size={14} color="var(--accent-warning)" />
+                    <span style={{ color: 'var(--text-primary)' }}>
+                      Live price unavailable. <span style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>Click to set a manual fallback.</span>
+                    </span>
+                  </div>
+                )}
 
                 {/* Suggestion Notification */}
                 {(() => {

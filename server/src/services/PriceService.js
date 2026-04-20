@@ -31,17 +31,6 @@ class FinnhubAdapter extends PriceAdapter {
   }
 }
 
-class CoinGeckoAdapter extends PriceAdapter {
-  async getPrice(ticker) {
-    // Ticker needs to be coin id e.g. bitcoin, ethereum
-    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ticker.toLowerCase()}&vs_currencies=usd`);
-    const data = await res.json();
-    if (data[ticker.toLowerCase()] && data[ticker.toLowerCase()].usd) {
-      return data[ticker.toLowerCase()].usd;
-    }
-    throw new Error('Crypto price not found');
-  }
-}
 
 class YahooFinanceAdapter extends PriceAdapter {
   async getPrice(ticker) {
@@ -71,24 +60,6 @@ class YahooFinanceAdapter extends PriceAdapter {
   }
 }
 
-class MetalPriceAdapter extends PriceAdapter {
-  constructor(apiKey) {
-    super();
-    this.apiKey = apiKey;
-  }
-  async getPrice(ticker) {
-    // Ticker like XAU, XAG
-    if (!this.apiKey) throw new Error('MetalPriceAPI key not configured');
-    const res = await fetch(`https://api.metalpriceapi.com/v1/latest?api_key=${this.apiKey}&base=USD&currencies=${ticker}`);
-    const data = await res.json();
-    if (data.rates && data.rates[ticker]) {
-      // Price is generally USD per 1 Ounce. The API returns the multiplier, we often need 1/rate if base is USD and rate is XAU
-      // MetalPriceAPI free tier base is USD. rate for XAU is 0.0004..., so 1 Ounce = 1 / 0.0004 USD
-      return 1 / data.rates[ticker];
-    }
-    throw new Error('Metal price not found');
-  }
-}
 
 class MFAdapter extends PriceAdapter {
   async getPrice(ticker) {
@@ -121,9 +92,6 @@ class PriceService {
   constructor() {
     this.adapters = {
       'EQUITY': () => new FinnhubAdapter(this.getSetting('FINNHUB_KEY')),
-      'CRYPTO': () => new CoinGeckoAdapter(),
-      'GOLD': () => new MetalPriceAdapter(this.getSetting('METALPRICE_KEY')),
-      'SILVER': () => new MetalPriceAdapter(this.getSetting('METALPRICE_KEY')),
       'MF': () => new MFAdapter()
     };
   }
@@ -187,40 +155,23 @@ class PriceService {
   async fetchPrice(ticker, type, currency = 'USD') {
     if (type === 'CASH') return 1;
 
-    // Handle SGBs (Sovereign Gold Bonds)
-    if (type === 'GOLD' && ticker.startsWith('SGB')) {
+    // Handle SGBs (Sovereign Gold Bonds) or Generic Gold
+    if (type === 'GOLD') {
       try {
-        // First attempt: Try to get market price from exchange (NSE/BSE)
-        const exchangeTicker = ticker.includes('.') ? ticker : `${ticker}.NS`;
+        // SGBs often have tickers like SGBSEP31II.NS. If it starts with SGB, try Equity adapter.
+        const exchangeTicker = ticker.includes('.') ? ticker : (ticker.startsWith('SGB') ? `${ticker}.NS` : ticker);
         const marketPrice = await this.adapters['EQUITY']().getPrice(exchangeTicker);
         if (marketPrice && marketPrice > 0) return marketPrice;
       } catch (e) {
-        // Fallback to spot gold calculation
-      }
-
-      // Fallback: Calculate derived price from Spot Gold (XAU)
-      try {
-        const xauPriceUsdOz = await this.adapters['GOLD']().getPrice('XAU');
-
-        // Need Currency Service for USD -> INR conversion
-        const CurrencyService = require('./CurrencyService');
-        const usdToInr = await CurrencyService.getExchangeRate('USD', 'INR');
-
-        const inrPerOz = xauPriceUsdOz * usdToInr;
-        const inrPerGram = inrPerOz / 31.1035; // 1 troy ounce = 31.1035 grams
-
-        // Add a slight 'SGB premium' if desired, but spot gram is the most accurate base
-        return inrPerGram;
-      } catch (e) {
-        logger.error(`SGB fallback pricing failed: ${e.message}`);
+        // Fallback to manual/cache handled below
       }
     }
 
     // Check Cache
-    const cached = db.prepare('SELECT price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
+    const cached = db.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
     if (cached) {
       const isFresh = (new Date() - new Date(cached.timestamp)) < CACHE_TTL_MS;
-      if (isFresh) return cached.price;
+      if (isFresh && !cached.manual_price) return cached.price;
     }
 
     // Fetch from adapter
@@ -235,7 +186,9 @@ class PriceService {
     } else {
       const getAdapter = this.adapters[type];
       if (!getAdapter) {
-        return cached ? cached.price : null;
+        const result = cached ? (cached.manual_price || cached.price) : null;
+        console.log(`[PriceService] No adapter for ${type}, returning from cache: ${result} (manual_price: ${cached?.manual_price})`);
+        return result;
       }
       adapter = getAdapter();
     }
@@ -243,11 +196,11 @@ class PriceService {
     try {
       const price = await adapter.getPrice(ticker, currency);
 
-      // Update Cache
+      // Update Cache & CLEAR manual flag on success
       db.prepare(`
-        INSERT INTO price_cache (ticker, price, timestamp) 
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, timestamp=CURRENT_TIMESTAMP
+        INSERT INTO price_cache (ticker, price, timestamp, manual_price) 
+        VALUES (?, ?, CURRENT_TIMESTAMP, NULL)
+        ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, timestamp=CURRENT_TIMESTAMP, manual_price=NULL
       `).run(ticker, price);
 
       return price;
@@ -255,10 +208,14 @@ class PriceService {
       if (!err.message.includes('Price not found') && !err.message.includes('API key not configured')) {
         logger.error(`[PriceService] Failed to fetch price for ${ticker}: ${err.message}`);
       }
-      // Fallback to stale cache if API fails
-      if (cached) return cached.price;
+      // Fallback: 1. Manual Price, 2. Stale Cache
+      if (cached) return cached.manual_price || cached.price;
       return null;
     }
+  }
+
+  getPriceDetails(ticker) {
+    return db.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
   }
 
   async searchSymbols(query) {

@@ -153,7 +153,7 @@ class PortfolioRepository {
 
   // ─── Manual Holding Upsert (Transactional) ─────────────────
 
-  upsertHolding({ id, name, ticker, type, units, price, currency }, triggerEnrichmentFn) {
+  upsertHolding({ id, name, ticker, type, units, price, currency, manualPrice }, triggerEnrichmentFn) {
     let assetId = id;
 
     db.transaction(() => {
@@ -174,6 +174,15 @@ class PortfolioRepository {
       }
 
       this.insertHoldingHistory(assetId, units, price, currency, 'UPDATE');
+
+      // Sync manual price override to cache
+      if (manualPrice !== undefined) {
+        db.prepare(`
+          INSERT INTO price_cache (ticker, manual_price, timestamp) 
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(ticker) DO UPDATE SET manual_price=excluded.manual_price, timestamp=CURRENT_TIMESTAMP
+        `).run(ticker, manualPrice);
+      }
       
       if (triggerEnrichmentFn && (type === 'EQUITY' || type === 'MF')) {
         triggerEnrichmentFn(assetId, ticker, type, name);
