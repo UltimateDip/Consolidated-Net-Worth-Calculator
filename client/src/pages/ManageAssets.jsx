@@ -8,7 +8,7 @@ import * as api from '../api/portfolioApi';
 
 const ManageAssets = () => {
   const { assets, baseCurrency, fetchPortfolio } = useStore();
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(assets.length === 0);
   const [assetToEdit, setAssetToEdit] = useState(null);
   const [processingId, setProcessingId] = useState(null);
   const [sortBy, setSortBy] = useState('VALUE'); // VALUE, NAME, TYPE, RECENT
