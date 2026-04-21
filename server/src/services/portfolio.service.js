@@ -180,7 +180,14 @@ class PortfolioService {
 
   // ─── Manual Holding ─────────────────────────────────────────
 
-  addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice }) {
+  addOrUpdateHolding(holdingData) {
+    let { id, name, ticker, type, units, price, currency, manualPrice, displayName } = holdingData;
+    
+    // Validate
+    if (!name || !type || units === undefined) {
+      throw new Error('Missing required fields');
+    }
+
     // Auto-generate missing tickers based on type
     if (!ticker || ticker.trim() === '') {
       if (type === 'CASH') {
@@ -202,7 +209,7 @@ class PortfolioService {
     };
     
     return repo.upsertHolding(
-      { id, name, ticker, type, units, price, currency: currency || 'USD', manualPrice },
+      { id, name, ticker, type, units, price, currency: currency || 'USD', manualPrice, displayName },
       enrichFn
     );
   }

@@ -18,7 +18,8 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     price: '',
     manualPrice: '',
     totalInvested: '',
-    currency: baseCurrency
+    currency: baseCurrency,
+    displayName: ''
   };
 
   const [formData, setFormData] = useState(defaultState);
@@ -39,7 +40,8 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
         price: assetToEdit.avg_price || '',
         manualPrice: assetToEdit.manualPrice || '',
         totalInvested: '',
-        currency: assetToEdit.currency || baseCurrency
+        currency: assetToEdit.currency || baseCurrency,
+        displayName: assetToEdit.display_name || ''
       });
     } else {
       setFormData(defaultState);
@@ -169,9 +171,13 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
                     <option value="GOLD">Gold</option>
                 </select>
             </div>
-            <div>
+            <div style={{ flex: 1 }}>
                 <label>Asset Name</label>
                 <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="e.g. Apple Inc" required />
+            </div>
+            <div style={{ flex: 1 }}>
+                <label>Display Name / Nickname (Optional)</label>
+                <input type="text" name="displayName" value={formData.displayName} onChange={handleChange} placeholder="e.g. My Apple Stocks" />
             </div>
         </div>
 

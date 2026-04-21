@@ -48,14 +48,14 @@ class PortfolioRepository {
     return db.prepare('SELECT id FROM assets WHERE ticker = ? AND id != ?').get(ticker, excludeId);
   }
 
-  createAsset(name, ticker, type, currency) {
-    const info = db.prepare('INSERT INTO assets (name, ticker, type, currency) VALUES (?, ?, ?, ?)').run(name, ticker, type, currency);
+  createAsset(name, ticker, type, currency, displayName) {
+    const info = db.prepare('INSERT INTO assets (name, ticker, type, currency, display_name) VALUES (?, ?, ?, ?, ?)').run(name, ticker, type, currency, displayName);
     return info.lastInsertRowid;
   }
 
-  updateAsset(id, name, ticker, type, currency) {
-    db.prepare('UPDATE assets SET name = ?, ticker = ?, type = ?, currency = ? WHERE id = ?')
-      .run(name, ticker, type, currency, id);
+  updateAsset(id, name, ticker, type, currency, displayName) {
+    db.prepare('UPDATE assets SET name = ?, ticker = ?, type = ?, currency = ?, display_name = ? WHERE id = ?')
+      .run(name, ticker, type, currency, displayName, id);
   }
 
   updateAssetNameAndCurrency(id, name, currency) {
@@ -154,7 +154,7 @@ class PortfolioRepository {
 
   // ─── Manual Holding Upsert (Transactional) ─────────────────
 
-  upsertHolding({ id, name, ticker, type, units, price, currency, manualPrice }, enrichFn) {
+  upsertHolding({ id, name, ticker, type, units, price, currency, manualPrice, displayName }, enrichFn) {
     let assetId = id;
 
     const transaction = db.transaction(() => {
@@ -164,14 +164,14 @@ class PortfolioRepository {
         if (collision) {
           throw new Error('COLLISION');
         }
-        this.updateAsset(assetId, name, ticker, type, currency);
+        this.updateAsset(assetId, name, ticker, type, currency, displayName);
       } else {
         const existing = this.getAssetByTicker(ticker);
         if (existing) {
           assetId = existing.id;
-          this.updateAssetNameAndCurrency(assetId, name, currency);
+          this.updateAsset(assetId, name, ticker, type, currency, displayName);
         } else {
-          assetId = this.createAsset(name, ticker, type, currency);
+          assetId = this.createAsset(name, ticker, type, currency, displayName);
         }
       }
 

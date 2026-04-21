@@ -45,3 +45,23 @@ export const formatCompact = (val) => {
   if (val >= 1e3) return `${(val / 1e3).toFixed(1)}K`;
   return val.toFixed(0);
 };
+
+/**
+ * Cleans long mutual fund names algorithmically based on common delimiters.
+ * Zero-maintenance compared to string-replacement lists.
+ */
+export const cleanAssetName = (name) => {
+  if (!name) return '';
+  // Split by common delimiters used in financial names
+  const match = name.split(/[-:(\[]/);
+  return match[0].trim();
+};
+
+/**
+ * Truncates a string to a max length and adds ellipsis.
+ */
+export const truncateLabel = (str, len = 20) => {
+  if (!str) return '';
+  if (str.length <= len) return str;
+  return str.substring(0, len) + '...';
+};

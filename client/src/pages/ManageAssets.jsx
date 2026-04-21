@@ -3,7 +3,7 @@ import useStore from '../store/useStore';
 import ManualEntry from '../components/ManualEntry';
 import BrokerImport from '../components/BrokerImport';
 import { Eye, Edit3, ChevronRight, ArrowDownWideNarrow, AlertCircle } from 'lucide-react';
-import { formatCurrency, TYPE_COLORS } from '../utils/formatters';
+import { formatCurrency, TYPE_COLORS, cleanAssetName } from '../utils/formatters';
 import * as api from '../api/portfolioApi';
 
 const ManageAssets = () => {
@@ -146,8 +146,11 @@ const ManageAssets = () => {
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.2)'}
                 >
                   <div style={{ flex: 1 }}>
-                    <strong style={{ display: 'block', fontSize: '1rem' }}>
-                      {asset.name}
+                    <strong 
+                      style={{ display: 'block', fontSize: '1rem' }} 
+                      title={asset.display_name ? `Official: ${asset.name}` : asset.name}
+                    >
+                      {asset.display_name || cleanAssetName(asset.name)}
                       {asset.type !== 'CASH' && asset.priceStatus && asset.priceStatus !== 'AUTOMATED' && (
                         <span style={{ 
                           fontSize: '0.65rem', 

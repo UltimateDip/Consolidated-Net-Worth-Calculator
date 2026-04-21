@@ -59,7 +59,11 @@ const Dashboard = () => {
   const top5 = [...assets]
     .sort((a, b) => (b.totalValue || 0) - (a.totalValue || 0))
     .slice(0, 5)
-    .map(a => ({ name: a.name, value: Math.round(a.totalValue || 0) }));
+    .map(a => ({ 
+      name: a.name, 
+      display_name: a.display_name,
+      value: Math.round(a.totalValue || 0) 
+    }));
 
   // Largest Holding
   const largest = assets.length > 0

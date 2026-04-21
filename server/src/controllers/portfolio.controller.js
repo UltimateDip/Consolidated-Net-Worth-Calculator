@@ -36,13 +36,13 @@ class PortfolioController {
 
   // POST /api/holdings
   addHolding = asyncHandler(async (req, res) => {
-    const { id, name, ticker, type, units, price, currency, manualPrice } = req.body;
+    const { id, name, ticker, type, units, price, currency, manualPrice, displayName } = req.body;
     
     logger.info('[PortfolioController] Adding/Updating holding: %s (%s)', name, ticker || 'CASH');
-    logger.debug('[PortfolioController] Payload:', { id, type, units, price, currency, manualPrice });
+    logger.debug('[PortfolioController] Payload:', { id, type, units, price, currency, manualPrice, displayName });
 
     try {
-      const assetId = await portfolioService.addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice });
+      const assetId = await portfolioService.addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice, displayName });
       logger.info('[PortfolioController] Successfully saved asset ID: %d', assetId);
       res.json({ success: true, id: assetId });
     } catch (err) {
