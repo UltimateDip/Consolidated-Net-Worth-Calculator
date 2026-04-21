@@ -158,12 +158,17 @@ class PriceService {
     // Handle SGBs (Sovereign Gold Bonds) or Generic Gold
     if (type === 'GOLD') {
       try {
+        logger.debug('[PriceService] Processing GOLD ticker: %s', ticker);
         // SGBs often have tickers like SGBSEP31II.NS. If it starts with SGB, try Equity adapter.
         const exchangeTicker = ticker.includes('.') ? ticker : (ticker.startsWith('SGB') ? `${ticker}.NS` : ticker);
+        logger.debug('[PriceService] Mapping GOLD to exchange ticker: %s', exchangeTicker);
         const marketPrice = await this.adapters['EQUITY']().getPrice(exchangeTicker);
-        if (marketPrice && marketPrice > 0) return marketPrice;
+        if (marketPrice && marketPrice > 0) {
+          logger.debug('[PriceService] Found SGB market price: %d', marketPrice);
+          return marketPrice;
+        }
       } catch (e) {
-        // Fallback to manual/cache handled below
+        logger.debug('[PortfolioService] SGB market fetch failed (expected if non-exchange gold): %s', e.message);
       }
     }
 
@@ -171,7 +176,15 @@ class PriceService {
     const cached = db.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
     if (cached) {
       const isFresh = (new Date() - new Date(cached.timestamp)) < CACHE_TTL_MS;
-      if (isFresh && !cached.manual_price) return cached.price;
+      if (isFresh && !cached.manual_price) {
+        logger.debug('[PriceService] Cache hit: %s = %d', ticker, cached.price);
+        return cached.price;
+      }
+      if (cached.manual_price) {
+        logger.debug('[PriceService] Manual price detected in cache: %s = %d', ticker, cached.manual_price);
+      } else {
+        logger.debug('[PriceService] Cache STALE for %s (last update: %s)', ticker, cached.timestamp);
+      }
     }
 
     // Fetch from adapter
@@ -206,10 +219,16 @@ class PriceService {
       return price;
     } catch (err) {
       if (!err.message.includes('Price not found') && !err.message.includes('API key not configured')) {
-        logger.error(`[PriceService] Failed to fetch price for ${ticker}: ${err.message}`);
+        logger.error('[PriceService] Failed to fetch price for %s: %s', ticker, err.message);
+      } else {
+        logger.debug('[PriceService] Adapter could not find price for %s: %s', ticker, err.message);
       }
       // Fallback: 1. Manual Price, 2. Stale Cache
-      if (cached) return cached.manual_price || cached.price;
+      if (cached) {
+        const fallback = cached.manual_price || cached.price;
+        logger.info('[PriceService] Falling back to %s price for %s: %d', cached.manual_price ? 'MANUAL' : 'STALE', ticker, fallback);
+        return fallback;
+      }
       return null;
     }
   }

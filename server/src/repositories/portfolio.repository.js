@@ -1,4 +1,5 @@
 const db = require('../models/db');
+const logger = require('../utils/logger');
 
 class PortfolioRepository {
 
@@ -153,10 +154,11 @@ class PortfolioRepository {
 
   // ─── Manual Holding Upsert (Transactional) ─────────────────
 
-  upsertHolding({ id, name, ticker, type, units, price, currency, manualPrice }, triggerEnrichmentFn) {
+  upsertHolding({ id, name, ticker, type, units, price, currency, manualPrice }, enrichFn) {
     let assetId = id;
 
-    db.transaction(() => {
+    const transaction = db.transaction(() => {
+      logger.debug('[PortfolioRepository] Starting upsert for %s (%s)', name, ticker);
       if (assetId) {
         const collision = this.checkTickerCollision(ticker, assetId);
         if (collision) {
@@ -184,8 +186,8 @@ class PortfolioRepository {
         `).run(ticker, manualPrice);
       }
       
-      if (triggerEnrichmentFn && (type === 'EQUITY' || type === 'MF')) {
-        triggerEnrichmentFn(assetId, ticker, type, name);
+      if (enrichFn && (type === 'EQUITY' || type === 'MF')) {
+        enrichFn(assetId, ticker, type, name);
       }
     })();
 

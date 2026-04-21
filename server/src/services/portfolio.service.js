@@ -38,15 +38,18 @@ class PortfolioService {
     // --- Phase 1: Fetch all live prices concurrently ---
     const pricePromises = assets.map(asset => {
       if (asset.type === 'CASH') {
+        logger.debug('[PortfolioService] %s: CASH type detected, resolve price to 1', asset.name);
         return Promise.resolve(1);
       }
       if (['EQUITY', 'MF', 'GOLD'].includes(asset.type)) {
+        logger.debug('[PortfolioService] %s: Fetching live price for %s (%s)', asset.name, asset.ticker, asset.type);
         return priceService.fetchPrice(asset.ticker, asset.type, asset.currency)
           .catch(err => {
-            logger.error(`[Portfolio] Price fetch failed for ${asset.ticker}: ${err.message}`);
+            logger.error('[PortfolioService] %s: Price fetch failed for %s: %s', asset.name, asset.ticker, err.message);
             return null;
           });
       }
+      logger.debug('[PortfolioService] %s: Unsupported type %s, resolve price to null', asset.name, asset.type);
       return Promise.resolve(null);
     });
 
@@ -77,8 +80,10 @@ class PortfolioService {
       let priceStatus = 'AUTOMATED';
       if (priceFromService === null) {
         priceStatus = 'FAILED';
+        logger.warn('[PortfolioService] %s: Using FAILED status (no market price found)', asset.name);
       } else if (details && details.manual_price !== null && details.manual_price !== undefined) {
         priceStatus = 'MANUAL';
+        logger.debug('[PortfolioService] %s: Using MANUAL status (fallback price: %d)', asset.name, details.manual_price);
       }
 
       const currentPrice = priceFromService || asset.avg_price || 0;

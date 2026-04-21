@@ -138,7 +138,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
       if (assetToEdit && onClearEdit) onClearEdit();
     } catch (error) {
       console.error("Error updating holding", error);
-      setStatus(error.message);
+      setStatus("Failed to save asset. Please check the ticker and try again.");
     }
   };
 

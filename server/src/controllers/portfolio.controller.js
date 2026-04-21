@@ -1,11 +1,13 @@
 const portfolioService = require('../services/portfolio.service');
 const asyncHandler = require('../utils/asyncHandler');
+const logger = require('../utils/logger');
 
 class PortfolioController {
 
   // GET /api/portfolio
   getPortfolio = asyncHandler(async (req, res) => {
     const result = await portfolioService.getPortfolio();
+    logger.debug('[PortfolioController] Fetched portfolio for base currency: %s', result.baseCurrency);
     res.json(result);
   });
 
@@ -33,10 +35,15 @@ class PortfolioController {
   });
 
   // POST /api/holdings
-  addHolding = asyncHandler((req, res) => {
+  addHolding = asyncHandler(async (req, res) => {
     const { id, name, ticker, type, units, price, currency, manualPrice } = req.body;
+    
+    logger.info('[PortfolioController] Adding/Updating holding: %s (%s)', name, ticker || 'CASH');
+    logger.debug('[PortfolioController] Payload:', { id, type, units, price, currency, manualPrice });
+
     try {
-      const assetId = portfolioService.addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice });
+      const assetId = await portfolioService.addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice });
+      logger.info('[PortfolioController] Successfully saved asset ID: %d', assetId);
       res.json({ success: true, id: assetId });
     } catch (err) {
       if (err.message === 'COLLISION') {
@@ -68,10 +75,16 @@ class PortfolioController {
   });
 
   // GET /api/validate-ticker
-  validateTicker = asyncHandler(async (req, res) => {
-    const { ticker, type, currency } = req.query;
-    const price = await portfolioService.validateTicker(ticker, type, currency);
-    res.json({ price });
+  validateTicker = asyncHandler(async (req, res, next) => {
+    try {
+      const { ticker, type, currency } = req.query;
+      logger.debug('[PortfolioController] Validating ticker: %s (%s) in %s', ticker, type, currency);
+      const price = await portfolioService.validateTicker(ticker, type, currency);
+      res.json({ price });
+    } catch (error) {
+      logger.error('[PortfolioController] Ticker validation failed: %s', error.message);
+      next(error);
+    }
   });
 
   // POST /api/assets/:id/apply-suggestion
