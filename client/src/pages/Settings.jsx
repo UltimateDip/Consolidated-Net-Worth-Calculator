@@ -109,29 +109,8 @@ const Settings = () => {
         </div>
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <label>
-          MetalPriceAPI Key (Gold/Silver)
-          <Tooltip>
-            1. Go to <a href="https://metalpriceapi.com/" target="_blank" rel="noreferrer" style={{color: 'var(--accent-primary)'}}>MetalPriceAPI.com</a> and sign up.<br/>
-            2. The free tier gives you daily updates for precious metals pricing.<br/>
-            3. Copy your specific API key.
-          </Tooltip>
-        </label>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input 
-            type="password"
-            name="METALPRICE_KEY" 
-            placeholder="Enter key..."
-            value={localSettings['METALPRICE_KEY'] || ''} 
-            onChange={handleChange}
-          />
-          <button className="btn-secondary" onClick={() => handleSave('METALPRICE_KEY')}>Save</button>
-        </div>
-      </div>
-      
       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '20px' }}>
-        Note: Crypto tracking uses CoinGecko's public API which does not require an API key for basic usage. Indian Mutual Funds use public AMFI data.
+        Note: Indian Mutual Funds use public AMFI data, and Sovereign Gold Bonds (SGB) are checked via public equity tickers. They do not require API keys for tracking.
       </p>
 
       <hr style={{ borderColor: 'var(--border-color)', margin: '30px 0' }} />
