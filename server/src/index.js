@@ -17,8 +17,15 @@ app.use(cors());
 app.use(express.json());
 app.use(requestLogger);
 
+const authRoutes = require('./routes/auth.routes');
+const { authMiddleware } = require('./middlewares/auth.middleware');
+
 // Routes
-app.use('/api', portfolioRoutes);
+// Public Auth Routes
+app.use('/api/auth', authRoutes);
+
+// Protected Portfolio Routes
+app.use('/api', authMiddleware, portfolioRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

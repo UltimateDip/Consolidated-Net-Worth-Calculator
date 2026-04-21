@@ -1,5 +1,4 @@
-const db = require('../models/db');
-const repo = require('../repositories/portfolio.repository');
+const { getGlobalDb } = require('../models/db');
 const logger = require('../utils/logger');
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -19,7 +18,6 @@ class FinnhubAdapter extends PriceAdapter {
     if (!this.apiKey) throw new Error('Finnhub API key not configured');
 
     let searchTicker = ticker;
-    // Prevent accidental US ticker matching (e.g., LTM US vs LTIMindtree India)
     if (currency === 'INR' && !ticker.includes('.')) {
       searchTicker = `${ticker}.NS`;
     }
@@ -31,11 +29,8 @@ class FinnhubAdapter extends PriceAdapter {
   }
 }
 
-
 class YahooFinanceAdapter extends PriceAdapter {
   async getPrice(ticker) {
-    // Yahoo Finance works well for Indian stocks with .NS or .BO suffix
-    // Adding a simple retry mechanism for resilience
     let attempts = 3;
     while (attempts > 0) {
       try {
@@ -53,17 +48,14 @@ class YahooFinanceAdapter extends PriceAdapter {
       } catch (e) {
         attempts--;
         if (attempts === 0) throw new Error(`Yahoo Finance fetch failed after 3 attempts: ${e.message}`);
-        // Small delay before retry (500ms)
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
   }
 }
 
-
 class MFAdapter extends PriceAdapter {
   async getPrice(ticker) {
-    // Basic validation for Scheme Code (usually 6 digits)
     if (!/^\d+$/.test(ticker)) {
       throw new Error(`Invalid Mutual Fund Scheme Code: ${ticker}. Please use the 6-digit numeric code from mfapi.in`);
     }
@@ -89,15 +81,12 @@ class MFAdapter extends PriceAdapter {
 }
 
 class PriceService {
-  constructor() {
-    this.adapters = {
-      'EQUITY': () => new FinnhubAdapter(this.getSetting('FINNHUB_KEY')),
+  
+  getAdapters(finnhubKey) {
+    return {
+      'EQUITY': () => new FinnhubAdapter(finnhubKey),
       'MF': () => new MFAdapter()
     };
-  }
-
-  getSetting(key) {
-    return repo.getSetting(key);
   }
 
   async findMFCodeByName(name) {
@@ -105,7 +94,6 @@ class PriceService {
       const mfAdapter = new MFAdapter();
       const results = await mfAdapter.search(name);
       if (results && results.length > 0) {
-        // Return the best match (first one)
         return {
           ticker: results[0].symbol,
           name: results[0].description
@@ -117,31 +105,30 @@ class PriceService {
     return null;
   }
 
-  async searchSymbols(query, type) {
+  async searchSymbols(query, type, finnhubKey) {
     let results = [];
 
-    // If type is specified, prioritize that adapter
     if (type === 'MF') {
       return await new MFAdapter().search(query);
     }
 
-    // Default: Try Equity (Finnhub)
     try {
-      const equityAdapter = this.adapters['EQUITY']();
-      const finnhubRes = await fetch(`https://finnhub.io/api/v1/search?q=${query}&token=${equityAdapter.apiKey}`);
-      const finnhubData = await finnhubRes.json();
-      if (finnhubData.result) {
-        results = [...results, ...finnhubData.result.map(r => ({
-          symbol: r.symbol,
-          description: r.description,
-          type: 'EQUITY'
-        }))];
+      const equityAdapter = this.getAdapters(finnhubKey)['EQUITY']();
+      if (equityAdapter.apiKey) {
+        const finnhubRes = await fetch(`https://finnhub.io/api/v1/search?q=${query}&token=${equityAdapter.apiKey}`);
+        const finnhubData = await finnhubRes.json();
+        if (finnhubData.result) {
+          results = [...results, ...finnhubData.result.map(r => ({
+            symbol: r.symbol,
+            description: r.description,
+            type: 'EQUITY'
+          }))];
+        }
       }
     } catch (e) {
       logger.error(`Equity search failed: ${e.message}`);
     }
 
-    // Also include MF if results are low or query looks like an Indian MF
     if (results.length < 5) {
       try {
         const mfResults = await new MFAdapter().search(query);
@@ -152,19 +139,16 @@ class PriceService {
     return results;
   }
 
-  async fetchPrice(ticker, type, currency = 'USD') {
+  async fetchPrice(ticker, type, currency = 'USD', finnhubKey = null) {
     if (type === 'CASH') return 1;
 
-    // Handle SGBs (Sovereign Gold Bonds) or Generic Gold
     if (type === 'GOLD') {
       try {
         logger.debug('[PriceService] Processing GOLD ticker: %s', ticker);
-        // SGBs often have tickers like SGBSEP31II.NS. If it starts with SGB, try Equity adapter.
         const exchangeTicker = ticker.includes('.') ? ticker : (ticker.startsWith('SGB') ? `${ticker}.NS` : ticker);
         logger.debug('[PriceService] Mapping GOLD to exchange ticker: %s', exchangeTicker);
-        const marketPrice = await this.adapters['EQUITY']().getPrice(exchangeTicker);
+        const marketPrice = await this.getAdapters(finnhubKey)['EQUITY']().getPrice(exchangeTicker);
         if (marketPrice && marketPrice > 0) {
-          logger.debug('[PriceService] Found SGB market price: %d', marketPrice);
           return marketPrice;
         }
       } catch (e) {
@@ -172,35 +156,25 @@ class PriceService {
       }
     }
 
-    // Check Cache
-    const cached = db.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
+    const cached = getGlobalDb().prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
     if (cached) {
       const isFresh = (new Date() - new Date(cached.timestamp)) < CACHE_TTL_MS;
       if (isFresh && !cached.manual_price) {
-        logger.debug('[PriceService] Cache hit: %s = %d', ticker, cached.price);
         return cached.price;
-      }
-      if (cached.manual_price) {
-        logger.debug('[PriceService] Manual price detected in cache: %s = %d', ticker, cached.manual_price);
-      } else {
-        logger.debug('[PriceService] Cache STALE for %s (last update: %s)', ticker, cached.timestamp);
       }
     }
 
-    // Fetch from adapter
     let adapter;
     if (type === 'EQUITY') {
-      // Use Yahoo Finance for Indian stocks to avoid Finnhub regional restrictions on free tier
       if (ticker.endsWith('.NS') || ticker.endsWith('.BO') || currency === 'INR') {
         adapter = new YahooFinanceAdapter();
       } else {
-        adapter = this.adapters['EQUITY']();
+        adapter = this.getAdapters(finnhubKey)['EQUITY']();
       }
     } else {
-      const getAdapter = this.adapters[type];
+      const getAdapter = this.getAdapters(finnhubKey)[type];
       if (!getAdapter) {
         const result = cached ? (cached.manual_price || cached.price) : null;
-        console.log(`[PriceService] No adapter for ${type}, returning from cache: ${result} (manual_price: ${cached?.manual_price})`);
         return result;
       }
       adapter = getAdapter();
@@ -209,8 +183,7 @@ class PriceService {
     try {
       const price = await adapter.getPrice(ticker, currency);
 
-      // Update Cache & CLEAR manual flag on success
-      db.prepare(`
+      getGlobalDb().prepare(`
         INSERT INTO price_cache (ticker, price, timestamp, manual_price) 
         VALUES (?, ?, CURRENT_TIMESTAMP, NULL)
         ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, timestamp=CURRENT_TIMESTAMP, manual_price=NULL
@@ -218,69 +191,55 @@ class PriceService {
 
       return price;
     } catch (err) {
-      if (!err.message.includes('Price not found') && !err.message.includes('API key not configured')) {
-        logger.error('[PriceService] Failed to fetch price for %s: %s', ticker, err.message);
-      } else {
-        logger.debug('[PriceService] Adapter could not find price for %s: %s', ticker, err.message);
-      }
-      // Fallback: 1. Manual Price, 2. Stale Cache
       if (cached) {
-        const fallback = cached.manual_price || cached.price;
-        logger.info('[PriceService] Falling back to %s price for %s: %d', cached.manual_price ? 'MANUAL' : 'STALE', ticker, fallback);
-        return fallback;
+        return cached.manual_price || cached.price;
       }
       return null;
     }
   }
 
   getPriceDetails(ticker) {
-    return db.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
+    return getGlobalDb().prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
   }
 
-  async searchSymbols(query) {
+  async searchSymbolsGlobal(query, finnhubKey) {
     if (!query || query.length < 2) return [];
 
-    // Check Search Cache (24h TTL)
-    const cached = db.prepare('SELECT results, timestamp FROM search_cache WHERE query = ?').get(query.toUpperCase());
+    const cached = getGlobalDb().prepare('SELECT results, timestamp FROM search_cache WHERE query = ?').get(query.toUpperCase());
     if (cached) {
       const isFresh = (new Date() - new Date(cached.timestamp)) < 24 * 60 * 60 * 1000;
       if (isFresh) return JSON.parse(cached.results);
     }
 
-    const apiKey = this.getSetting('FINNHUB_KEY');
-    if (!apiKey) return [];
+    if (!finnhubKey) return [];
 
     try {
-      const res = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${apiKey}`);
+      const res = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${finnhubKey}`);
       const data = await res.json();
       const results = data.result || [];
 
-      // Update Search Cache
-      db.prepare(`
+      getGlobalDb().prepare(`
         INSERT INTO search_cache (query, results, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(query) DO UPDATE SET results=excluded.results, timestamp=CURRENT_TIMESTAMP
       `).run(query.toUpperCase(), JSON.stringify(results));
 
       return results;
     } catch (err) {
-      logger.error(`Search symbols failed: ${err.message}`);
       return [];
     }
   }
 
-  async fetchProfile(ticker) {
-    const apiKey = this.getSetting('FINNHUB_KEY');
-    if (!apiKey) return null;
+  async fetchProfile(ticker, finnhubKey) {
+    if (!finnhubKey) return null;
 
     try {
-      const res = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${apiKey}`);
+      const res = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${finnhubKey}`);
       const data = await res.json();
       
       if (data && data.name) return data;
       
-      // Fallback for non-US stocks (Free tier restriction)
       if (!data || !data.name || res.status === 403) {
-        const searchRes = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(ticker)}&token=${apiKey}`);
+        const searchRes = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(ticker)}&token=${finnhubKey}`);
         const searchData = await searchRes.json();
         const match = (searchData.result || []).find(r => r.symbol === ticker || r.displaySymbol === ticker);
         if (match && match.description) {
@@ -289,7 +248,6 @@ class PriceService {
       }
       return null;
     } catch (err) {
-      logger.error(`Fetch profile failed: ${err.message}`);
       return null;
     }
   }

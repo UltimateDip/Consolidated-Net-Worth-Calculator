@@ -1,25 +1,32 @@
-const portfolioService = require('../services/portfolio.service');
+const PortfolioService = require('../services/portfolio.service');
+const { getUserDb } = require('../models/db');
 const asyncHandler = require('../utils/asyncHandler');
 const logger = require('../utils/logger');
 
 class PortfolioController {
 
+  getService(req) {
+    const username = req.user ? req.user.username : 'admin'; // fallback for dev
+    const userDb = getUserDb(username);
+    return new PortfolioService(userDb, username);
+  }
+
   // GET /api/portfolio
   getPortfolio = asyncHandler(async (req, res) => {
-    const result = await portfolioService.getPortfolio();
+    const result = await this.getService(req).getPortfolio();
     logger.debug('[PortfolioController] Fetched portfolio for base currency: %s', result.baseCurrency);
     res.json(result);
   });
 
   // GET /api/history
   getHistory = asyncHandler(async (req, res) => {
-    const result = await portfolioService.getHistory();
+    const result = await this.getService(req).getHistory();
     res.json(result);
   });
 
   // GET /api/settings
   getSettings = asyncHandler((req, res) => {
-    res.json(portfolioService.getSettings());
+    res.json(this.getService(req).getSettings());
   });
 
   // POST /api/settings
@@ -30,7 +37,7 @@ class PortfolioController {
       error.status = 400;
       throw error;
     }
-    portfolioService.saveSetting(key, value);
+    this.getService(req).saveSetting(key, value);
     res.json({ success: true });
   });
 
@@ -42,7 +49,7 @@ class PortfolioController {
     logger.debug('[PortfolioController] Payload:', { id, type, units, price, currency, manualPrice, displayName });
 
     try {
-      const assetId = await portfolioService.addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice, displayName });
+      const assetId = await this.getService(req).addOrUpdateHolding({ id, name, ticker, type, units, price, currency, manualPrice, displayName });
       logger.info('[PortfolioController] Successfully saved asset ID: %d', assetId);
       res.json({ success: true, id: assetId });
     } catch (err) {
@@ -63,14 +70,14 @@ class PortfolioController {
       error.status = 400;
       throw error;
     }
-    const count = await portfolioService.importBrokerFile(req.params.broker, req.file.path);
+    const count = await this.getService(req).importBrokerFile(req.params.broker, req.file.path);
     res.json({ success: true, count });
   });
 
   // GET /api/search-symbols
   searchSymbols = asyncHandler(async (req, res) => {
     const { q, type } = req.query;
-    const results = await portfolioService.searchSymbols(q, type);
+    const results = await this.getService(req).searchSymbols(q, type);
     res.json(results);
   });
 
@@ -79,7 +86,7 @@ class PortfolioController {
     try {
       const { ticker, type, currency } = req.query;
       logger.debug('[PortfolioController] Validating ticker: %s (%s) in %s', ticker, type, currency);
-      const price = await portfolioService.validateTicker(ticker, type, currency);
+      const price = await this.getService(req).validateTicker(ticker, type, currency);
       res.json({ price });
     } catch (error) {
       logger.error('[PortfolioController] Ticker validation failed: %s', error.message);
@@ -90,7 +97,7 @@ class PortfolioController {
   // POST /api/assets/:id/apply-suggestion
   applySuggestion = asyncHandler((req, res) => {
     const { id } = req.params;
-    const result = portfolioService.applySuggestion(id);
+    const result = this.getService(req).applySuggestion(id);
     if (result) {
       res.json({ success: true });
     } else {
@@ -103,13 +110,13 @@ class PortfolioController {
   // POST /api/assets/:id/ignore-suggestion
   ignoreSuggestion = asyncHandler((req, res) => {
     const { id } = req.params;
-    portfolioService.ignoreSuggestion(id);
+    this.getService(req).rejectSuggestion(id); // NOTE: Fixed method name from ignore to reject based on service
     res.json({ success: true });
   });
 
   // POST /api/assets/bulk-enrich
   bulkEnrich = asyncHandler(async (req, res) => {
-    const count = await portfolioService.startBulkEnrichment();
+    const count = await this.getService(req).performBulkEnrichment(); // NOTE: Fixed method to match service
     res.json({
       success: true,
       message: `Enrichment started for ${count} assets. Names will appear in your holdings list as they are found.`
