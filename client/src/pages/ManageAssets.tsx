@@ -11,10 +11,19 @@ type SortOption = 'VALUE' | 'NAME' | 'TYPE' | 'RECENT';
 
 const ManageAssets: React.FC = () => {
   const { assets, baseCurrency, fetchPortfolio } = useStore();
-  const [isEditMode, setIsEditMode] = useState<boolean>(assets.length === 0);
+  const [isEditMode, setIsEditMode] = useState<boolean>(true);
   const [assetToEdit, setAssetToEdit] = useState<Asset | null>(null);
   const [processingId, setProcessingId] = useState<number | string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('VALUE');
+  const [hasSynced, setHasSynced] = useState<boolean>(false);
+
+  // Sync mode once data loads
+  React.useEffect(() => {
+    if (assets.length > 0 && !hasSynced) {
+      setIsEditMode(false);
+      setHasSynced(true);
+    }
+  }, [assets.length, hasSynced]);
 
   // Strict TypeScript Sorting logic
   const sortedAssets = [...assets].sort((a, b) => {

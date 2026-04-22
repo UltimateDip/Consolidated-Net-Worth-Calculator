@@ -1,5 +1,5 @@
-const PortfolioService = require('../services/portfolio.service');
-const { getUserDb } = require('../models/db');
+const PortfolioService = require('../services/portfolio.service').default;
+const { getUserDb, getGlobalDb } = require('../models/db');
 const asyncHandler = require('../utils/asyncHandler');
 const logger = require('../utils/logger');
 
@@ -8,7 +8,8 @@ class PortfolioController {
   getService(req) {
     const username = req.user ? req.user.username : 'admin'; // fallback for dev
     const userDb = getUserDb(username);
-    return new PortfolioService(userDb, username);
+    const globalDb = getGlobalDb();
+    return new PortfolioService(userDb, globalDb, username);
   }
 
   // GET /api/portfolio
