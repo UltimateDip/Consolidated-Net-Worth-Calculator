@@ -1,5 +1,5 @@
 import PortfolioRepository from '../repositories/portfolio.repository';
-import priceService from './PriceService';
+import { PriceService } from './PriceService';
 import currencyService from './CurrencyService';
 import BrokerParserFactory from './parsers/BrokerParserFactory';
 import logger from '../utils/logger';
@@ -19,10 +19,12 @@ interface HoldingInput {
 
 export default class PortfolioService {
   private repo: PortfolioRepository;
+  private priceService: PriceService;
   private username: string;
 
   constructor(userDb: any, globalDb: any, username: string) {
     this.repo = new PortfolioRepository(userDb, globalDb);
+    this.priceService = new PriceService(globalDb);
     this.username = username;
   }
 
@@ -31,14 +33,14 @@ export default class PortfolioService {
   async triggerAssetEnrichment(assetId: number, ticker: string | null, type: string, currentName: string): Promise<void> {
     try {
       const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-      if (type === 'EQUITY') {
-        const profile = await priceService.fetchProfile(ticker, finnhubKey);
+      if (type === 'EQUITY' && ticker) {
+        const profile = await this.priceService.fetchProfile(ticker as string, finnhubKey || '');
         if (profile && profile.name && profile.name !== currentName) {
           this.repo.updateSuggestedName(assetId, profile.name);
         }
       } else if (type === 'MF') {
         if (ticker && !/^\d+$/.test(ticker)) {
-          const lookup = await priceService.findMFCodeByName(currentName);
+          const lookup = await this.priceService.findMFCodeByName(currentName);
           if (lookup && (lookup.name !== currentName || (lookup.ticker !== ticker && ticker !== null))) {
             this.repo.updateSuggestedNameAndTicker(assetId, lookup.name, lookup.ticker);
           }
@@ -63,7 +65,7 @@ export default class PortfolioService {
       if (asset.type === 'CASH') {
         currentPrice = 1;
       } else if (asset.ticker) {
-        const cached = priceService.getPriceDetails(asset.ticker);
+        const cached = this.priceService.getPriceDetails(asset.ticker);
         currentPrice = (cached && cached.price) || asset.avg_price || 0;
       }
 
@@ -103,7 +105,7 @@ export default class PortfolioService {
         return Promise.resolve(1);
       }
       if (['EQUITY', 'MF', 'GOLD'].includes(asset.type)) {
-        return priceService.fetchPrice(asset.ticker, asset.type, asset.currency)
+        return this.priceService.fetchPrice(asset.ticker, asset.type, asset.currency)
           .catch(() => null);
       }
       return Promise.resolve(null);
@@ -131,7 +133,7 @@ export default class PortfolioService {
     let totalNetWorth = 0;
     const enrichedAssets = assets.map((asset: any, i: number) => {
       const priceFromService = livePrices[i];
-      const details = priceService.getPriceDetails(asset.ticker);
+      const details = this.priceService.getPriceDetails(asset.ticker);
 
       let priceStatus = 'AUTOMATED';
       if (asset.type === 'CASH') {
@@ -333,19 +335,21 @@ export default class PortfolioService {
 
   async searchSymbols(query: string, type?: string): Promise<any[]> {
     if (!query || query.length < 2) return [];
-    const results = await priceService.search(query);
+    // Note: PortfolioService doesn't have finnhubKey directly, we could fetch it from repo
+    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
+    const results = await this.priceService.searchSymbols(query, type || 'EQUITY', finnhubKey);
     return Array.isArray(results) ? results : [];
   }
 
   async getMFSuggestions(query: string): Promise<any[]> {
     if (!query || query.length < 2) return [];
-    return await priceService.searchMFWithPrices(query);
+    return await this.priceService.getMFSuggestions(query);
   }
 
   // ─── Ticker Validation ──────────────────────────────────────
 
-  async validateTicker(ticker: string, type: string, currency: string): Promise<number> {
-    return priceService.fetchPrice(ticker, type, currency);
+  async validateTicker(ticker: string, type: string, currency: string): Promise<number | null> {
+    return this.priceService.fetchPrice(ticker, type, currency);
   }
 
   // ─── Name Suggestions ──────────────────────────────────────
@@ -375,8 +379,8 @@ export default class PortfolioService {
 
     for (const asset of assets) {
       try {
-        if (asset.type === 'EQUITY') {
-          const profile = await priceService.fetchProfile(asset.ticker, finnhubKey);
+        if (asset.type === 'EQUITY' && asset.ticker) {
+          const profile = await this.priceService.fetchProfile(asset.ticker as string, finnhubKey || '');
           if (profile && profile.name && profile.name !== asset.name) {
             this.repo.updateSuggestedName(asset.id, profile.name);
             count++;
@@ -384,7 +388,7 @@ export default class PortfolioService {
         } else if (asset.type === 'MF') {
           // If it's an unverified slug, check if we can find ANY match to nudge the user
           if (asset.verification_status === 'UNVERIFIED' && (!asset.ticker || !/^\d+$/.test(asset.ticker))) {
-            const results = await priceService.search(asset.name);
+            const results = await this.priceService.searchSymbols(asset.name, 'MF', finnhubKey);
             if (results && results.length > 0) {
               this.repo.updateVerificationStatus(asset.id, 'NEEDS_REVIEW');
               count++;
