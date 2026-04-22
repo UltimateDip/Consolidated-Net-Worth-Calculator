@@ -1,6 +1,8 @@
 const express = require('express');
 const multer = require('multer');
 const controller = require('../controllers/portfolio.controller');
+const { validateSchema } = require('../middlewares/validate');
+const { addHoldingSchema, saveSettingsSchema } = require('../validators/portfolio.validators');
 
 const router = express.Router();
 const upload = multer({ dest: '/tmp/' });
@@ -12,10 +14,10 @@ router.get('/history', controller.getHistory);
 
 // Settings
 router.get('/settings', controller.getSettings);
-router.post('/settings', controller.saveSettings);
+router.post('/settings', validateSchema(saveSettingsSchema), controller.saveSettings);
 
 // Holdings
-router.post('/holdings', controller.addHolding);
+router.post('/holdings', validateSchema(addHoldingSchema), controller.addHolding);
 
 // Broker Import
 router.post('/import/:broker', upload.single('file'), controller.importBrokerData);
