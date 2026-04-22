@@ -104,16 +104,16 @@ class PortfolioRepository {
 
   // ─── Snapshots ──────────────────────────────────────────────
 
-  saveSnapshot(date, totalValue, baseCurrency) {
+  saveSnapshot(date, totalValue, baseCurrency, fxRatesJson) {
     this.db.prepare(`
-      INSERT INTO networth_snapshots (date, total_value, base_currency) VALUES (?, ?, ?)
-      ON CONFLICT(date) DO UPDATE SET total_value=excluded.total_value, base_currency=excluded.base_currency
-    `).run(date, totalValue, baseCurrency);
+      INSERT INTO networth_snapshots (date, total_value, base_currency, fx_rates) VALUES (?, ?, ?, ?)
+      ON CONFLICT(date) DO UPDATE SET total_value=excluded.total_value, base_currency=excluded.base_currency, fx_rates=excluded.fx_rates
+    `).run(date, totalValue, baseCurrency, fxRatesJson);
   }
 
   getSnapshots(limit = 90) {
     return this.db.prepare(
-      'SELECT date, total_value, base_currency FROM networth_snapshots ORDER BY date ASC LIMIT ?'
+      'SELECT date, total_value, base_currency, fx_rates FROM networth_snapshots ORDER BY date ASC LIMIT ?'
     ).all(limit);
   }
 
