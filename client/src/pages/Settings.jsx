@@ -53,11 +53,9 @@ const Settings = () => {
   const handleBulkEnrich = async () => {
     setIsEnriching(true);
     try {
-      const data = await api.bulkEnrichAssets();
-      alert(data.message || 'Bulk enrichment started!');
+      await api.bulkEnrichAssets();
     } catch (err) {
       console.error(err);
-      alert('Failed to start enrichment');
     } finally {
       setIsEnriching(false);
     }
@@ -180,7 +178,7 @@ const Settings = () => {
           style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
         >
           <RefreshCw size={16} className={isEnriching ? 'spin' : ''} />
-          {isEnriching ? 'Starting Scan...' : 'Refresh All Asset Names'}
+          {isEnriching ? 'Scanning...' : 'Refresh All Asset Names'}
         </button>
       </div>
     </div>
