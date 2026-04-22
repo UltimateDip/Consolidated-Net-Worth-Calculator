@@ -17,6 +17,8 @@ export interface Asset {
   suggested_name?: string;
   suggested_ticker?: string;
   display_name?: string;
+  last_updated?: string;
+  originalPrice?: number;
 }
 
 export interface PortfolioHistory {
