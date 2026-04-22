@@ -120,6 +120,8 @@ const useStore = create<StoreState>()(
             baseCurrency: data.baseCurrency, 
             error: null 
           });
+          // Refresh history too as a snapshot might have been created
+          await get().fetchPortfolioHistory();
         } catch (err: any) {
           set({ error: err.message });
         } finally {

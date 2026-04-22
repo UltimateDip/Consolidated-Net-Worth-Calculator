@@ -10,12 +10,14 @@ import ManageAssets from './pages/ManageAssets';
 import NotFound from './pages/NotFound';
 
 function App() {
-  const { isAuthenticated, fetchPortfolio, fetchSettings, logout, user } = useStore();
+  const { isAuthenticated, fetchPortfolio, fetchCachedPortfolio, fetchPortfolioHistory, fetchSettings, logout, user } = useStore();
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchSettings();
+      fetchCachedPortfolio();
       fetchPortfolio();
+      fetchPortfolioHistory();
     }
   }, [isAuthenticated]);
 
@@ -50,7 +52,7 @@ function App() {
               <Link to="/settings" style={{ color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <SettingsIcon size={20} /> Settings
               </Link>
-              <button 
+              <button
                 onClick={logout}
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '1rem', padding: '0.5rem', borderRadius: '4px' }}
                 className="text-btn"
