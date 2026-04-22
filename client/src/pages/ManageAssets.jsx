@@ -241,7 +241,7 @@ const ManageAssets = () => {
                 )}
 
                 {/* MF Verification Nudge */}
-                {asset.type === 'MF' && (asset.verification_status !== 'VERIFIED' || asset.ticker?.startsWith('MF_')) && assetToEdit?.id !== asset.id && (
+                {asset.type === 'MF' && (asset.verification_status !== 'VERIFIED' || !asset.ticker || asset.ticker.startsWith('MF_')) && assetToEdit?.id !== asset.id && (
                   <div 
                     onClick={() => { setIsEditMode(true); handleEditClick(asset); }}
                     style={{

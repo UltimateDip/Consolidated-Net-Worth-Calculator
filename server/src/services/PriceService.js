@@ -37,32 +37,16 @@ class YahooFinanceAdapter extends PriceAdapter {
 class MFAdapter extends PriceAdapter {
   async getPrice(ticker) {
     if (!ticker) return null;
-    let resolvedTicker = ticker;
     
-    // If ticker is not a numeric scheme code, try to resolve it
+    // FAIL FAST: If it's not a numeric AMFI code, don't attempt live fetch.
+    // Resolution is handled by the background enrichment task.
     if (!/^\d+$/.test(ticker)) {
-      logger.debug('[MFAdapter] Ticker %s is not a numeric code, attempting resolution...', ticker);
-      
-      // Clean up the search query: 
-      // 1. Remove MF_ prefix
-      // 2. Replace underscores with spaces
-      let query = ticker;
-      if (ticker && ticker.startsWith('MF_')) {
-        query = ticker.substring(3).replace(/_/g, ' ');
-      }
-
-      const results = await this.search(query);
-      if (results && results.length > 0) {
-        resolvedTicker = results[0].symbol;
-        logger.debug('[MFAdapter] Resolved %s -> %s (%s)', ticker, resolvedTicker, results[0].description);
-      } else {
-        throw new Error(`Could not resolve Mutual Fund: ${ticker}. Please use the 6-digit numeric code from mfapi.in`);
-      }
+      logger.debug('[MFAdapter] Skipping live fetch for unverified MF ticker: %s', ticker);
+      throw new Error('Unverified Mutual Fund. Needs linking to official code.');
     }
 
-    const res = await fetch(`https://api.mfapi.in/mf/${resolvedTicker}/latest`);
+    const res = await fetch(`https://api.mfapi.in/mf/${ticker}/latest`);
     const data = await res.json();
-
     if (data && data.data && data.data.length > 0) {
       return parseFloat(data.data[0].nav);
     }
