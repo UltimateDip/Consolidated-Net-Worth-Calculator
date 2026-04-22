@@ -1,41 +1,26 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import useStore from './store/useStore';
-import { LayoutDashboard, Settings as SettingsIcon, List, LogOut } from 'lucide-react';
-import Login from './pages/Login';
+import { LayoutDashboard, Settings as SettingsIcon, List } from 'lucide-react';
 
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import ManageAssets from './pages/ManageAssets';
 
 function App() {
-  const { isAuthenticated, fetchPortfolio, fetchSettings, logout, user } = useStore();
+  const { fetchPortfolio, fetchSettings } = useStore();
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchSettings();
-      fetchPortfolio();
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    const handleAuthExpired = () => {
-      logout();
-    };
-    window.addEventListener('auth_expired', handleAuthExpired);
-    return () => window.removeEventListener('auth_expired', handleAuthExpired);
-  }, [logout]);
-
-  if (!isAuthenticated) {
-    return <Login />;
-  }
+    fetchSettings();
+    fetchPortfolio();
+  }, []);
 
   return (
     <Router>
       <div className="app-container">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h1>AssetAura</h1>
-          <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <h1>Net Worth</h1>
+          <nav style={{ display: 'flex', gap: '1rem' }}>
             <Link to="/" style={{ color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <LayoutDashboard size={20} /> Dashboard
             </Link>
@@ -45,14 +30,6 @@ function App() {
             <Link to="/settings" style={{ color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <SettingsIcon size={20} /> Settings
             </Link>
-            <button 
-              onClick={logout}
-              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '1rem', padding: '0.5rem', borderRadius: '4px' }}
-              className="text-btn"
-              title={`Logged in as ${user?.username}`}
-            >
-              <LogOut size={20} /> Logout
-            </button>
           </nav>
         </header>
 
