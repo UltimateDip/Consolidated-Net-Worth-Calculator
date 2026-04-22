@@ -287,7 +287,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
         )}
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button type="submit" className="btn-primary" style={{ flex: 1 }}>Save Holding</button>
+          <button type="submit" className="btn-secondary" style={{ flex: 1 }}>Save Holding</button>
           {!isCash && formData.ticker && (
             <button type="button" className="btn-secondary" onClick={() => verifyTicker(formData.ticker, formData.type, formData.currency)}>
               Verify
