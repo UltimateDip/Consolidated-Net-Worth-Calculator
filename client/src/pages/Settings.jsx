@@ -86,12 +86,12 @@ const Settings = () => {
         <div style={{ display: 'flex', gap: '10px' }}>
           <select 
             name="BASE_CURRENCY" 
-            value={localSettings['BASE_CURRENCY'] || 'USD'} 
+            value={localSettings['BASE_CURRENCY'] || 'INR'} 
             onChange={handleChange}
           >
+            <option value="INR">INR (₹)</option>
             <option value="USD">USD ($)</option>
             <option value="EUR">EUR (€)</option>
-            <option value="INR">INR (₹)</option>
             <option value="GBP">GBP (£)</option>
           </select>
           <button className="btn-secondary" onClick={() => handleSave('BASE_CURRENCY')}>Save</button>

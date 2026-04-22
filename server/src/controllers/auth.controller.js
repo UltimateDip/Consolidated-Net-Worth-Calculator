@@ -37,8 +37,9 @@ class AuthController {
 
     logger.info(`[Auth] Registered new user: ${username}`);
 
-    // Pre-initialize their tenant databases
-    getUserDb(username);
+    // Pre-initialize their tenant databases and seed defaults
+    const userDb = getUserDb(username);
+    userDb.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('BASE_CURRENCY', 'INR')").run();
 
     // Generate Token (2 hours)
     const token = jwt.sign({ id: result.lastInsertRowid, username }, JWT_SECRET, { expiresIn: '2h' });
@@ -107,7 +108,7 @@ class AuthController {
 
     const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
+      return res.status(400).json({ error: 'Current password is incorrect' });
     }
 
     const hash = await bcrypt.hash(newPassword, 10);

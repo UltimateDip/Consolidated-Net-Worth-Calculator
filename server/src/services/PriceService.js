@@ -139,7 +139,7 @@ class PriceService {
     return results;
   }
 
-  async fetchPrice(ticker, type, currency = 'USD', finnhubKey = null) {
+  async fetchPrice(ticker, type, currency = 'INR', finnhubKey = null) {
     if (type === 'CASH') return 1;
 
     if (type === 'GOLD') {

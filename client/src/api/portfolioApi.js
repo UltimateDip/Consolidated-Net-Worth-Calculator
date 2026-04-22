@@ -154,7 +154,7 @@ export const searchSymbols = async (query, type) => {
  * Validate a ticker and fetch its current price
  */
 export const validateTicker = async (ticker, type, currency) => {
-  const params = new URLSearchParams({ ticker, type, currency: currency || 'USD' });
+  const params = new URLSearchParams({ ticker, type, currency: currency || 'INR' });
   const res = await fetchWithAuth(`${API_URL}/validate-ticker?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to validate ticker');
   return res.json();

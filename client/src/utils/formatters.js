@@ -24,7 +24,7 @@ export const TYPE_COLORS = {
  * Formats a number as a currency string using Indian notation (Lakhs/Crores)
  * but with the specified currency symbol.
  */
-export const formatCurrency = (amount, currency = 'USD') => {
+export const formatCurrency = (amount, currency = 'INR') => {
   try {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',

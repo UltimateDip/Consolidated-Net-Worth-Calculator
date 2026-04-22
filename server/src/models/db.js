@@ -77,7 +77,7 @@ function getUserDb(username) {
       ticker TEXT,
       type TEXT NOT NULL,
       units REAL DEFAULT 0,
-      currency TEXT DEFAULT 'USD',
+      currency TEXT DEFAULT 'INR',
       suggested_name TEXT,
       suggested_ticker TEXT,
       display_name TEXT

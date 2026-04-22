@@ -5,7 +5,7 @@ import { X, Search, CheckCircle, AlertCircle, RefreshCcw } from 'lucide-react';
 import * as api from '../api/portfolioApi';
 import { formatCurrency } from '../utils/formatters';
 
-const CURRENCIES = ['USD', 'INR', 'EUR', 'GBP'];
+const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
 
 const ManualEntry = ({ assetToEdit, onClearEdit }) => {
   const { addOrUpdateHolding, baseCurrency, fetchPortfolio } = useStore();

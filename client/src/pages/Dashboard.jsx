@@ -49,7 +49,7 @@ const Dashboard = () => {
   // Currency Exposure
   const currencyData = Object.values(
     assets.reduce((acc, asset) => {
-      const cur = asset.currency || 'USD';
+      const cur = asset.currency || 'INR';
       if (!acc[cur]) acc[cur] = { name: cur, value: 0 };
       acc[cur].value += asset.totalValue || 0;
       return acc;

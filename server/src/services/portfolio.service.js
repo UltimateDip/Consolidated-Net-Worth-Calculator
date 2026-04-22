@@ -36,7 +36,7 @@ class PortfolioService {
   // ─── Cached Portfolio (instant, no external API calls) ──────
 
   getCachedPortfolio() {
-    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'USD';
+    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'INR';
     const assets = this.repo.getAllAssetsWithLatestHoldings();
 
     // Use cached prices from price_cache and last known FX rates
@@ -52,7 +52,7 @@ class PortfolioService {
       }
 
       let finalPrice = currentPrice;
-      const assetCurrency = asset.currency || 'USD';
+      const assetCurrency = asset.currency || 'INR';
 
       if (assetCurrency !== baseCurrency) {
         const fxRate = currencyService.getCachedRate(assetCurrency, baseCurrency);
@@ -78,7 +78,7 @@ class PortfolioService {
   // ─── Portfolio Summary ──────────────────────────────────────
 
   async getPortfolio() {
-    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'USD';
+    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'INR';
     const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
     const assets = this.repo.getAllAssetsWithLatestHoldings();
 
@@ -98,7 +98,7 @@ class PortfolioService {
 
     // --- Phase 2: Pre-fetch unique FX rates concurrently ---
     const uniqueCurrencies = [...new Set(
-      assets.map(a => a.currency || 'USD').filter(c => c !== baseCurrency)
+      assets.map(a => a.currency || 'INR').filter(c => c !== baseCurrency)
     )];
 
     const fxRateMap = {};
@@ -127,7 +127,7 @@ class PortfolioService {
 
       const currentPrice = priceFromService || asset.avg_price || 0;
       let finalPrice = currentPrice;
-      const assetCurrency = asset.currency || 'USD';
+      const assetCurrency = asset.currency || 'INR';
       
       if (assetCurrency !== baseCurrency) {
         finalPrice = currentPrice * (fxRateMap[assetCurrency] || 1);
@@ -156,7 +156,7 @@ class PortfolioService {
   // ─── History ────────────────────────────────────────────────
 
   async getHistory() {
-    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'USD';
+    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'INR';
     const snapshots = this.repo.getSnapshots(90);
 
     const historyPromises = snapshots.map(async (s) => {
@@ -216,7 +216,7 @@ class PortfolioService {
     };
     
     return this.repo.upsertHolding(
-      { id, name, ticker, type, units, price, currency: currency || 'USD', manualPrice, displayName },
+      { id, name, ticker, type, units, price, currency: currency || 'INR', manualPrice, displayName },
       enrichFn
     );
   }

@@ -138,7 +138,7 @@ class PortfolioRepository {
       for (const item of results) {
         let asset = checkAsset.get(item.ticker);
         if (!asset) {
-          const info = insertAsset.run(item.name, item.ticker, item.type, item.currency || 'USD');
+          const info = insertAsset.run(item.name, item.ticker, item.type, item.currency || 'INR');
           asset = { id: info.lastInsertRowid };
         }
         insertHolding.run(asset.id, item.units, item.price, 'UPDATE');

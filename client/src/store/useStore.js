@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import * as api from '../api/portfolioApi';
 
 const useStore = create(persist((set, get) => ({
-  baseCurrency: 'USD',
+  baseCurrency: 'INR',
   totalNetWorth: 0,
   assets: [],
   portfolioHistory: [],
