@@ -1,86 +1,110 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const logger = require('../utils/logger');
 
 const dataDir = path.join(__dirname, '../../../data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, 'networth.sqlite');
-const db = new Database(dbPath);
+let globalDbInstance = null;
+const userDbConnections = {}; // Simple memoization for open tenant connections
 
-function initDb() {
+function getGlobalDb() {
+  if (globalDbInstance) return globalDbInstance;
+  
+  const dbPath = path.join(dataDir, 'global.sqlite');
+  const db = new Database(dbPath);
+  
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS price_cache (
+      ticker TEXT PRIMARY KEY,
+      price REAL,
+      manual_price REAL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS search_cache (
+      query TEXT PRIMARY KEY,
+      results TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS fx_rates (
+      date TEXT,
+      currency TEXT,
+      rate REAL,
+      PRIMARY KEY (date, currency)
+    );
+  `);
+  
+  globalDbInstance = db;
+  return globalDbInstance;
+}
+
+function getUserDb(username) {
+  if (!username) {
+    throw new Error('Username required to access tenant database.');
+  }
+
+  // Use cached connection if already open
+  if (userDbConnections[username]) {
+    return userDbConnections[username];
+  }
+
+  const userDir = path.join(dataDir, username);
+  if (!fs.existsSync(userDir)) {
+    fs.mkdirSync(userDir, { recursive: true });
+  }
+
+  const dbPath = path.join(userDir, 'portfolio.sqlite');
+  const db = new Database(dbPath);
+
+  // Initialize tenant schema
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT
     );
-
     CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       ticker TEXT,
-      type TEXT NOT NULL, -- EQUITY, MF, CRYPTO, GOLD, CASH, SILVER, OTHER
+      type TEXT NOT NULL,
       units REAL DEFAULT 0,
-      currency TEXT DEFAULT 'USD'
+      currency TEXT DEFAULT 'USD',
+      suggested_name TEXT,
+      suggested_ticker TEXT,
+      display_name TEXT
     );
-
     CREATE TABLE IF NOT EXISTS holdings_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id INTEGER NOT NULL,
       units REAL NOT NULL,
       price REAL,
       currency TEXT,
-      entry_type TEXT DEFAULT 'UPDATE', -- UPDATE, BUY, SELL
+      entry_type TEXT DEFAULT 'UPDATE',
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(asset_id) REFERENCES assets(id) ON DELETE CASCADE
     );
-
-    CREATE TABLE IF NOT EXISTS price_cache (
-      ticker TEXT PRIMARY KEY,
-      price REAL,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
     CREATE TABLE IF NOT EXISTS networth_snapshots (
       date TEXT PRIMARY KEY,
       total_value REAL,
       base_currency TEXT
     );
-
-    CREATE TABLE IF NOT EXISTS search_cache (
-      query TEXT PRIMARY KEY,
-      results TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
   `);
 
-  // Migration: Add suggested_name and suggested_ticker to assets if they don't exist
-  const tableInfo = db.prepare("PRAGMA table_info(assets)").all();
-  if (!tableInfo.some(col => col.name === 'suggested_name')) {
-    db.exec("ALTER TABLE assets ADD COLUMN suggested_name TEXT");
-  }
-  if (!tableInfo.some(col => col.name === 'suggested_ticker')) {
-    db.exec("ALTER TABLE assets ADD COLUMN suggested_ticker TEXT");
-  }
-  if (!tableInfo.some(col => col.name === 'display_name')) {
-    db.exec("ALTER TABLE assets ADD COLUMN display_name TEXT");
-  }
-
-  // Migration: Add fx_rates JSON column to networth_snapshots for historical currency conversion
-  const snapshotInfo = db.prepare("PRAGMA table_info(networth_snapshots)").all();
-  if (!snapshotInfo.some(col => col.name === 'fx_rates')) {
-    db.exec("ALTER TABLE networth_snapshots ADD COLUMN fx_rates TEXT");
-  }
-
-  // Migration: Add manual_price to price_cache
-  const priceCacheInfo = db.prepare("PRAGMA table_info(price_cache)").all();
-  if (!priceCacheInfo.some(col => col.name === 'manual_price')) {
-    db.exec("ALTER TABLE price_cache ADD COLUMN manual_price REAL");
-  }
+  logger.info(`[DatabaseManager] Initialized connection for tenant: ${username}`);
+  userDbConnections[username] = db;
+  return db;
 }
 
-initDb();
-
-module.exports = db;
+module.exports = {
+  getGlobalDb,
+  getUserDb
+};

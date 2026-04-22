@@ -11,12 +11,58 @@ const useStore = create(persist((set, get) => ({
   autoRefresh: false,
   isLoading: false,
   error: null,
+  user: null,
+  isAuthenticated: !!localStorage.getItem('assetaura_token'),
 
   setAutoRefresh: (val) => set({ autoRefresh: val }),
+
+  login: async (username, password) => {
+    try {
+      const data = await api.loginUser(username, password);
+      localStorage.setItem('assetaura_token', data.token);
+      set({ user: data.user, isAuthenticated: true, error: null, assets: [], totalNetWorth: 0, portfolioHistory: [], settings: {} });
+      return true;
+    } catch (err) {
+      set({ error: err.message });
+      throw err;
+    }
+  },
+
+  register: async (username, password) => {
+    try {
+      const data = await api.registerUser(username, password);
+      localStorage.setItem('assetaura_token', data.token);
+      set({ user: data.user, isAuthenticated: true, error: null, assets: [], totalNetWorth: 0, portfolioHistory: [] });
+      return true;
+    } catch (err) {
+      set({ error: err.message });
+      throw err;
+    }
+  },
+
+  logout: () => {
+    localStorage.removeItem('assetaura_token');
+    set({ user: null, isAuthenticated: false, assets: [], totalNetWorth: 0, portfolioHistory: [] });
+    // Reset URL to home so the next login always opens the dashboard
+    window.history.replaceState(null, '', '/');
+  },
 
   fetchPortfolio: async () => {
     set({ isLoading: true, error: null });
     try {
+      // Phase 1: Instant load from DB-cached prices (no external API calls)
+      try {
+        const cached = await api.fetchCachedPortfolio();
+        set({ 
+          baseCurrency: cached.baseCurrency, 
+          totalNetWorth: cached.totalNetWorth, 
+          assets: cached.assets
+        });
+      } catch (e) {
+        // Cached endpoint failed, will fall through to live fetch
+      }
+
+      // Phase 2: Background sync with live prices
       const data = await api.fetchPortfolioSummary();
       set({ 
         baseCurrency: data.baseCurrency, 
@@ -87,7 +133,9 @@ const useStore = create(persist((set, get) => ({
       totalNetWorth: state.totalNetWorth, 
       baseCurrency: state.baseCurrency,
       portfolioHistory: state.portfolioHistory,
-      settings: state.settings
+      settings: state.settings,
+      user: state.user,
+      isAuthenticated: state.isAuthenticated
   })
 }));
 
