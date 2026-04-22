@@ -9,29 +9,6 @@ class PriceAdapter {
   }
 }
 
-// NOTE: FinnhubAdapter is NOT used for price fetching.
-// It exists only as a reference. All pricing goes through Yahoo Finance.
-// Finnhub is used exclusively for: Symbol Search + Company Profile Enrichment.
-class FinnhubAdapter extends PriceAdapter {
-  constructor(apiKey) {
-    super();
-    this.apiKey = apiKey;
-  }
-  async getPrice(ticker, currency) {
-    if (!this.apiKey) throw new Error('Finnhub API key not configured');
-
-    let searchTicker = ticker;
-    if (currency === 'INR' && !ticker.includes('.')) {
-      searchTicker = `${ticker}.NS`;
-    }
-
-    const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${searchTicker}&token=${this.apiKey}`);
-    const data = await res.json();
-    if (data.c) return data.c; // Current price
-    throw new Error('Price not found');
-  }
-}
-
 class YahooFinanceAdapter extends PriceAdapter {
   async getPrice(ticker) {
     let attempts = 3;
@@ -134,7 +111,7 @@ class PriceService {
     return results;
   }
 
-  async fetchPrice(ticker, type, currency = 'INR', finnhubKey = null) {
+  async fetchPrice(ticker, type, currency = 'INR') {
     if (type === 'CASH') return 1;
 
     // --- Check cache first ---

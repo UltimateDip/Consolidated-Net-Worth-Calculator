@@ -67,7 +67,7 @@ class PortfolioService {
         currentPrice: finalPrice,
         originalPrice: currentPrice,
         totalValue,
-        priceStatus: 'CACHED',
+        priceStatus: asset.type === 'CASH' ? 'MANUAL' : 'CACHED',
         manualPrice: null
       };
     });
@@ -79,7 +79,6 @@ class PortfolioService {
 
   async getPortfolio() {
     const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'INR';
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
     const assets = this.repo.getAllAssetsWithLatestHoldings();
 
     // --- Phase 1: Fetch all live prices concurrently ---
@@ -88,7 +87,7 @@ class PortfolioService {
         return Promise.resolve(1);
       }
       if (['EQUITY', 'MF', 'GOLD'].includes(asset.type)) {
-        return priceService.fetchPrice(asset.ticker, asset.type, asset.currency, finnhubKey)
+        return priceService.fetchPrice(asset.ticker, asset.type, asset.currency)
           .catch(err => null);
       }
       return Promise.resolve(null);
@@ -119,7 +118,9 @@ class PortfolioService {
       const details = priceService.getPriceDetails(asset.ticker);
       
       let priceStatus = 'AUTOMATED';
-      if (priceFromService === null) {
+      if (asset.type === 'CASH') {
+        priceStatus = 'MANUAL';
+      } else if (priceFromService === null) {
         priceStatus = 'FAILED';
       } else if (details && details.manual_price !== null && details.manual_price !== undefined) {
         priceStatus = 'MANUAL';
@@ -248,8 +249,7 @@ class PortfolioService {
   // ─── Ticker Validation ──────────────────────────────────────
 
   async validateTicker(ticker, type, currency) {
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-    return priceService.fetchPrice(ticker, type, currency, finnhubKey);
+    return priceService.fetchPrice(ticker, type, currency);
   }
 
   // ─── Name Suggestions ──────────────────────────────────────

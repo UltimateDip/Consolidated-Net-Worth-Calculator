@@ -137,15 +137,16 @@ const Settings = () => {
 
       <hr style={{ borderColor: 'var(--border-color)', margin: '30px 0' }} />
       <h3>API Integrations</h3>
-      <p style={{ fontSize: '0.9rem', marginBottom: '20px' }}>Add free API keys to enable live market data for your assets.</p>
+      <p style={{ fontSize: '0.9rem', marginBottom: '20px' }}>Optional API keys to enhance your experience.</p>
 
       <div style={{ marginBottom: '20px' }}>
         <label>
-          Finnhub API Key (Equities/Stocks)
+          Finnhub API Key (Symbol Search & Enrichment)
           <Tooltip>
             1. Go to <a href="https://finnhub.io/" target="_blank" rel="noreferrer" style={{color: 'var(--accent-primary)'}}>Finnhub.io</a> and sign up.<br/>
             2. The free tier offers 60 requests/minute, perfect for this app.<br/>
-            3. Copy the "API Key" from your dashboard.
+            3. Copy the "API Key" from your dashboard.<br/><br/>
+            <strong>Used for:</strong> Searching stock symbols by name and fetching full company names. Not used for price fetching.
           </Tooltip>
         </label>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -161,7 +162,7 @@ const Settings = () => {
       </div>
 
       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '20px' }}>
-        Note: Indian Mutual Funds use public AMFI data, and Sovereign Gold Bonds (SGB) are checked via public equity tickers. They do not require API keys for tracking.
+        All live prices are fetched via Yahoo Finance (no key required). Indian Mutual Funds use public AMFI data. The Finnhub key is optional but recommended for better stock search and automatic name suggestions.
       </p>
 
       <hr style={{ borderColor: 'var(--border-color)', margin: '30px 0' }} />
