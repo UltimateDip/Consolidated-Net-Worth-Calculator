@@ -4,10 +4,8 @@ import { CHART_COLORS } from '../../utils/formatters';
 import { GlassTooltip, renderDonutLabel } from './ChartUtils';
 
 const AllocationCharts = ({ allocationData, currencyData, baseCurrency }) => {
-  const showCurrencyExposure = currencyData.length > 1;
-
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: showCurrencyExposure ? '1fr 1fr' : '1fr', gap: '20px', marginBottom: '30px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
 
       {/* Asset Allocation Donut */}
       <div className="glass-panel">
@@ -40,36 +38,34 @@ const AllocationCharts = ({ allocationData, currencyData, baseCurrency }) => {
       </div>
 
       {/* Currency Exposure */}
-      {showCurrencyExposure && (
-        <div className="glass-panel">
-          <h3 style={{ marginBottom: '15px' }}>Currency Exposure</h3>
-          {currencyData.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No data yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={currencyData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={3}
-                  dataKey="value"
-                  label={renderDonutLabel}
-                  animationBegin={200}
-                  animationDuration={800}
-                >
-                  {currencyData.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} stroke="none" />
-                  ))}
-                </Pie>
-                <Tooltip content={<GlassTooltip currency={baseCurrency} />} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      )}
+      <div className="glass-panel">
+        <h3 style={{ marginBottom: '15px' }}>Currency Exposure</h3>
+        {currencyData.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)' }}>No data yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie
+                data={currencyData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={100}
+                paddingAngle={3}
+                dataKey="value"
+                label={renderDonutLabel}
+                animationBegin={200}
+                animationDuration={800}
+              >
+                {currencyData.map((_, i) => (
+                  <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} stroke="none" />
+                ))}
+              </Pie>
+              <Tooltip content={<GlassTooltip currency={baseCurrency} />} />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+      </div>
     </div>
   );
 };
