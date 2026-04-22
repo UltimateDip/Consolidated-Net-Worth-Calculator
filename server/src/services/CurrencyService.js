@@ -106,42 +106,6 @@ class CurrencyService {
         logger.error(`[CurrencyService] Historical FX error for ${from}->${to} on ${date}. Missing INR mappings. Defaulting to 1.`);
         return 1;
     }
-
-    // Synchronous, DB-only rate lookup (no external API calls)
-    getCachedRate(fromCurrency, toCurrency) {
-        if (!fromCurrency || !toCurrency) return 1;
-        const from = fromCurrency.toUpperCase();
-        const to = toCurrency.toUpperCase();
-        if (from === to) return 1;
-
-        // Check in-memory cache first
-        const cacheKey = `${from}_${to}`;
-        const now = Date.now();
-        if (this.cache[cacheKey] && now - this.cache[cacheKey].timestamp < this.cacheTime) {
-            return this.cache[cacheKey].rate;
-        }
-
-        // Fall back to DB
-        try {
-            const globalDb = getGlobalDb();
-            const getRateVsInr = (currency) => {
-                if (currency === 'INR') return 1;
-                const row = globalDb.prepare('SELECT rate FROM fx_rates WHERE currency = ? ORDER BY date DESC LIMIT 1').get(currency);
-                return row ? row.rate : null;
-            };
-
-            const rateFrom = getRateVsInr(from);
-            const rateTo = getRateVsInr(to);
-
-            if (rateFrom && rateTo) {
-                return rateTo / rateFrom;
-            }
-        } catch (err) {
-            logger.warn(`[CurrencyService] getCachedRate error: ${err.message}`);
-        }
-
-        return 1;
-    }
 }
 
 module.exports = new CurrencyService();

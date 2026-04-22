@@ -68,15 +68,6 @@ export const fetchPortfolioSummary = async () => {
 };
 
 /**
- * Fetch the cached portfolio (instant, no live price fetching)
- */
-export const fetchCachedPortfolio = async () => {
-  const res = await fetchWithAuth(`${API_URL}/portfolio/cached`);
-  if (!res.ok) throw new Error('Failed to fetch cached portfolio');
-  return res.json();
-};
-
-/**
  * Fetch historical portfolio snapshots
  */
 export const fetchPortfolioHistory = async () => {

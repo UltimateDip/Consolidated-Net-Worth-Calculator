@@ -6,7 +6,6 @@ const router = express.Router();
 const upload = multer({ dest: '/tmp/' });
 
 // Portfolio & History
-router.get('/portfolio/cached', controller.getCachedPortfolio);
 router.get('/portfolio', controller.getPortfolio);
 router.get('/history', controller.getHistory);
 
