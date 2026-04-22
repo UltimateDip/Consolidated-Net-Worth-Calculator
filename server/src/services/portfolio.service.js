@@ -1,7 +1,7 @@
 const PortfolioRepository = require('../repositories/portfolio.repository');
 const priceService = require('./PriceService');
 const currencyService = require('./CurrencyService');
-const { BrokerParserFactory } = require('./BrokerParser');
+const BrokerParserFactory = require('./parsers/BrokerParserFactory');
 const logger = require('../utils/logger');
 
 class PortfolioService {
