@@ -171,13 +171,6 @@ label {
   animation: spin 1.5s linear infinite;
 }
 
-.add-asset-icon-link:hover {
-  transform: scale(1.1) !important;
-  background: rgba(255, 255, 255, 0.1) !important;
-  box-shadow: 0 0 20px var(--primary-color-alpha) !important;
-  cursor: pointer;
-}
-
 .suggestion-item:hover {
   background-color: var(--bg-glass-hover);
   color: white;

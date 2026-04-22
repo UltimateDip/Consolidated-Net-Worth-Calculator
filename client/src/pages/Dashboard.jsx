@@ -1,7 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import useStore from '../store/useStore';
-import { RefreshCw, PlusCircle } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 // Child Components
 import StatCards from '../components/dashboard/StatCards';
@@ -107,47 +106,21 @@ const Dashboard = () => {
         setAutoRefresh={setAutoRefresh}
       />
       
-      {assets.length === 0 ? (
-        <div className="glass-panel" style={{ textAlign: 'center', padding: '4rem 2rem', marginTop: '20px' }}>
-          <Link to="/edit" className="add-asset-icon-link" style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.05)',
-            marginBottom: '1.5rem',
-            color: 'var(--primary-color)',
-            textDecoration: 'none',
-            transition: 'transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease'
-          }}>
-            <PlusCircle size={32} />
-          </Link>
-          <h2 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontSize: '1.8rem' }}>Welcome to AssetAura</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '0', maxWidth: '400px', margin: '0 auto', lineHeight: '1.6' }}>
-            Your financial portfolio is entirely empty. Get started by adding your first asset or importing data from your broker.
-          </p>
-        </div>
-      ) : (
-        <>
-          <AllocationCharts 
-            allocationData={allocationData} 
-            currencyData={currencyData} 
-            baseCurrency={baseCurrency} 
-          />
-          
-          <TopHoldingsChart 
-            top5={top5} 
-            baseCurrency={baseCurrency} 
-          />
-          
-          <PortfolioHistoryChart 
-            historyData={historyData} 
-            baseCurrency={baseCurrency} 
-          />
-        </>
-      )}
+      <AllocationCharts 
+        allocationData={allocationData} 
+        currencyData={currencyData} 
+        baseCurrency={baseCurrency} 
+      />
+      
+      <TopHoldingsChart 
+        top5={top5} 
+        baseCurrency={baseCurrency} 
+      />
+      
+      <PortfolioHistoryChart 
+        historyData={historyData} 
+        baseCurrency={baseCurrency} 
+      />
     </div>
   );
 };

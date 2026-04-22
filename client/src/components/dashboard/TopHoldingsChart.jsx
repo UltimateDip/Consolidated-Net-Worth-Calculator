@@ -12,7 +12,7 @@ const TopHoldingsChart = ({ top5, baseCurrency }) => {
 
   return (
     <div className="glass-panel" style={{ marginBottom: '30px' }}>
-      <h3 style={{ marginBottom: '15px' }}>{top5.length >= 5 ? 'Top 5 Holdings' : 'Top Holdings'}</h3>
+      <h3 style={{ marginBottom: '15px' }}>Top 5 Holdings</h3>
       {chartData.length === 0 ? (
         <p style={{ color: 'var(--text-muted)' }}>No data yet.</p>
       ) : (
