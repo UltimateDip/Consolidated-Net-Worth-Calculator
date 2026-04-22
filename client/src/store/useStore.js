@@ -43,6 +43,8 @@ const useStore = create(persist((set, get) => ({
   logout: () => {
     localStorage.removeItem('assetaura_token');
     set({ user: null, isAuthenticated: false, assets: [], totalNetWorth: 0, portfolioHistory: [] });
+    // Reset URL to home so the next login always opens the dashboard
+    window.history.replaceState(null, '', '/');
   },
 
   fetchPortfolio: async () => {

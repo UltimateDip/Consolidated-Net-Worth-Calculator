@@ -35,6 +35,12 @@ function getGlobalDb() {
       results TEXT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS fx_rates (
+      date TEXT,
+      currency TEXT,
+      rate REAL,
+      PRIMARY KEY (date, currency)
+    );
   `);
   
   globalDbInstance = db;
@@ -89,8 +95,7 @@ function getUserDb(username) {
     CREATE TABLE IF NOT EXISTS networth_snapshots (
       date TEXT PRIMARY KEY,
       total_value REAL,
-      base_currency TEXT,
-      fx_rates TEXT
+      base_currency TEXT
     );
   `);
 
