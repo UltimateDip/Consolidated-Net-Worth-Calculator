@@ -104,10 +104,9 @@ class PortfolioService {
       };
     });
 
-    // Save daily snapshot with FX rates for accurate historical conversion
+    // Save daily snapshot
     const today = new Date().toISOString().split('T')[0];
-    const fxSnapshot = { [baseCurrency]: 1, ...fxRateMap };
-    this.repo.saveSnapshot(today, totalNetWorth, baseCurrency, JSON.stringify(fxSnapshot));
+    this.repo.saveSnapshot(today, totalNetWorth, baseCurrency);
 
     return { baseCurrency, totalNetWorth, assets: enrichedAssets };
   }
@@ -118,41 +117,14 @@ class PortfolioService {
     const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'USD';
     const snapshots = this.repo.getSnapshots(90);
 
-    const legacyCurrencies = [...new Set(
-      snapshots
-        .filter(s => !s.fx_rates && s.base_currency && s.base_currency !== baseCurrency)
-        .map(s => s.base_currency)
-    )];
-
-    const legacyFxMap = {};
-    if (legacyCurrencies.length > 0) {
-      const fxPromises = legacyCurrencies.map(cur =>
-        currencyService.getExchangeRate(cur, baseCurrency)
-          .then(rate => ({ cur, rate }))
-          .catch(() => ({ cur, rate: 1 }))
-      );
-      const fxResults = await Promise.all(fxPromises);
-      fxResults.forEach(({ cur, rate }) => { legacyFxMap[cur] = rate; });
-    }
-
-    return snapshots.map(s => {
+    const historyPromises = snapshots.map(async (s) => {
       const snapshotCurrency = s.base_currency || baseCurrency;
 
       if (snapshotCurrency === baseCurrency) {
         return { date: s.date, total_value: s.total_value, base_currency: baseCurrency };
       }
 
-      let rate = 1;
-      if (s.fx_rates) {
-        const storedRates = JSON.parse(s.fx_rates);
-        if (storedRates[baseCurrency]) {
-          rate = 1 / storedRates[baseCurrency];
-        } else {
-          rate = legacyFxMap[snapshotCurrency] || 1;
-        }
-      } else {
-        rate = legacyFxMap[snapshotCurrency] || 1;
-      }
+      const rate = await currencyService.getHistoricalExchangeRate(s.date, snapshotCurrency, baseCurrency);
 
       return {
         date: s.date,
@@ -160,6 +132,8 @@ class PortfolioService {
         base_currency: baseCurrency,
       };
     });
+
+    return Promise.all(historyPromises);
   }
 
   // ─── Settings ───────────────────────────────────────────────
