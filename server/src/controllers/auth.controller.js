@@ -85,38 +85,6 @@ class AuthController {
     });
   });
 
-  // POST /api/auth/change-password
-  changePassword = asyncHandler(async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
-    const username = req.user.username; // Provided by authMiddleware
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current and new passwords are required' });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters' });
-    }
-
-    const globalDb = getGlobalDb();
-    const user = globalDb.prepare('SELECT * FROM users WHERE username = ?').get(username);
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
-    }
-
-    const hash = await bcrypt.hash(newPassword, 10);
-    globalDb.prepare('UPDATE users SET password_hash = ? WHERE username = ?').run(hash, username);
-
-    logger.info(`[Auth] User changed password: ${username}`);
-    res.json({ success: true, message: 'Password updated successfully' });
-  });
-
 }
 
 module.exports = new AuthController();

@@ -46,18 +46,6 @@ export const loginUser = async (username, password) => {
   return res.json();
 };
 
-export const changePassword = async (currentPassword, newPassword) => {
-  const res = await fetchWithAuth(`${API_URL}/auth/change-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ currentPassword, newPassword })
-  });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Failed to change password');
-  }
-  return res.json();
-};
 /**
  * Fetch the portfolio summary (enriched assets and total net worth)
  */
