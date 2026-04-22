@@ -18,6 +18,13 @@ class PortfolioController {
     res.json(result);
   });
 
+  // GET /api/portfolio/cached — instant response, no external API calls
+  getCachedPortfolio = asyncHandler((req, res) => {
+    const result = this.getService(req).getCachedPortfolio();
+    logger.debug('[PortfolioController] Served cached portfolio for base currency: %s', result.baseCurrency);
+    res.json(result);
+  });
+
   // GET /api/history
   getHistory = asyncHandler(async (req, res) => {
     const result = await this.getService(req).getHistory();

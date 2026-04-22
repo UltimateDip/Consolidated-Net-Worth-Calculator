@@ -83,15 +83,8 @@ const Dashboard = () => {
     value: s.total_value,
   }));
 
-  // Initial load screen
-  if (isLoading && assets.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: '100px 20px', color: 'var(--text-secondary)' }}>
-        <RefreshCw size={32} className="spin" style={{ marginBottom: '20px', color: 'var(--accent-primary)' }} />
-        <h2>Loading Portfolio Data...</h2>
-      </div>
-    );
-  }
+  // Note: No full-page loading blocker. Dashboard renders instantly with cached
+  // data. The syncing spinner on StatCards indicates a live refresh is in progress.
 
   return (
     <div className="animate-fade-in">
