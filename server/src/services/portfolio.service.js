@@ -33,48 +33,6 @@ class PortfolioService {
     }
   }
 
-  // ─── Cached Portfolio (instant, no external API calls) ──────
-
-  getCachedPortfolio() {
-    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'USD';
-    const assets = this.repo.getAllAssetsWithLatestHoldings();
-
-    // Use cached prices from price_cache and last known FX rates
-    let totalNetWorth = 0;
-    const enrichedAssets = assets.map(asset => {
-      let currentPrice = 0;
-      
-      if (asset.type === 'CASH') {
-        currentPrice = 1;
-      } else if (asset.ticker) {
-        const cached = priceService.getPriceDetails(asset.ticker);
-        currentPrice = (cached && cached.price) || asset.avg_price || 0;
-      }
-
-      let finalPrice = currentPrice;
-      const assetCurrency = asset.currency || 'USD';
-
-      if (assetCurrency !== baseCurrency) {
-        const fxRate = currencyService.getCachedRate(assetCurrency, baseCurrency);
-        finalPrice = currentPrice * fxRate;
-      }
-
-      const totalValue = finalPrice * (asset.current_units || 0);
-      totalNetWorth += totalValue;
-
-      return {
-        ...asset,
-        currentPrice: finalPrice,
-        originalPrice: currentPrice,
-        totalValue,
-        priceStatus: 'CACHED',
-        manualPrice: null
-      };
-    });
-
-    return { baseCurrency, totalNetWorth, assets: enrichedAssets, isCached: true };
-  }
-
   // ─── Portfolio Summary ──────────────────────────────────────
 
   async getPortfolio() {
