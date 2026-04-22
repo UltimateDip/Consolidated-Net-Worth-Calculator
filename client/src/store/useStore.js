@@ -20,7 +20,7 @@ const useStore = create(persist((set, get) => ({
     try {
       const data = await api.loginUser(username, password);
       localStorage.setItem('assetaura_token', data.token);
-      set({ user: data.user, isAuthenticated: true, error: null, assets: [], totalNetWorth: 0, portfolioHistory: [] });
+      set({ user: data.user, isAuthenticated: true, error: null, assets: [], totalNetWorth: 0, portfolioHistory: [], settings: {} });
       return true;
     } catch (err) {
       set({ error: err.message });
@@ -50,6 +50,19 @@ const useStore = create(persist((set, get) => ({
   fetchPortfolio: async () => {
     set({ isLoading: true, error: null });
     try {
+      // Phase 1: Instant load from DB-cached prices (no external API calls)
+      try {
+        const cached = await api.fetchCachedPortfolio();
+        set({ 
+          baseCurrency: cached.baseCurrency, 
+          totalNetWorth: cached.totalNetWorth, 
+          assets: cached.assets
+        });
+      } catch (e) {
+        // Cached endpoint failed, will fall through to live fetch
+      }
+
+      // Phase 2: Background sync with live prices
       const data = await api.fetchPortfolioSummary();
       set({ 
         baseCurrency: data.baseCurrency, 
