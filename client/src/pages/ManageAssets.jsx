@@ -173,7 +173,7 @@ const ManageAssets = () => {
                         <>{asset.currency || baseCurrency} Balance</>
                       )}
                       {asset.type === 'EQUITY' && (
-                        <>{parseFloat(asset.current_units).toFixed(2)} Shares • {asset.ticker} • {asset.currency || baseCurrency}</>
+                        <>{parseFloat(asset.current_units).toFixed(2)} Shares • {asset.ticker || 'Unverified'} • {asset.currency || baseCurrency}</>
                       )}
                       {asset.type === 'MF' && (
                         <>{parseFloat(asset.current_units).toFixed(2)} Units • {asset.currency || baseCurrency}</>
@@ -240,12 +240,51 @@ const ManageAssets = () => {
                   </div>
                 )}
 
+                {/* MF Verification Nudge */}
+                {asset.type === 'MF' && (asset.verification_status !== 'VERIFIED' || !asset.ticker || asset.ticker.startsWith('MF_')) && assetToEdit?.id !== asset.id && (
+                  <div 
+                    onClick={() => { setIsEditMode(true); handleEditClick(asset); }}
+                    style={{
+                      marginTop: '8px',
+                      marginLeft: '20px',
+                      padding: '10px 16px',
+                      background: 'rgba(59, 130, 246, 0.08)',
+                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)';
+                      e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)';
+                      e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.2)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '1.2rem' }}>✨</span>
+                      <span style={{ color: 'var(--text-primary)' }}>
+                        Potential market link found for this fund.
+                      </span>
+                    </div>
+                    <span style={{ color: 'var(--accent-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      Verify Fund <ChevronRight size={14} />
+                    </span>
+                  </div>
+                )}
+
                 {/* Suggestion Notification */}
                 {(() => {
                   const hasNameChange = asset.suggested_name && asset.suggested_name !== asset.name;
                   const hasTickerChange = asset.suggested_ticker && asset.suggested_ticker !== asset.ticker;
                   
-                  if (!isEditMode && (hasNameChange || hasTickerChange) && processingId !== asset.id) {
+                  if (!isEditMode && asset.type === 'EQUITY' && (hasNameChange || hasTickerChange) && processingId !== asset.id) {
                     return (
                       <div className="animate-fade-in-up" style={{
                         marginTop: '8px',

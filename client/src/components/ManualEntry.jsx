@@ -28,6 +28,9 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
   const [status, setStatus] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [mfSuggestions, setMfSuggestions] = useState([]);
+  const [isResolving, setIsResolving] = useState(false);
+  const [selectedMfCode, setSelectedMfCode] = useState(null);
   const [validation, setValidation] = useState({ loading: false, price: null, error: null });
   const searchTimeout = useRef(null);
 
@@ -47,7 +50,30 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     } else {
       setFormData(defaultState);
     }
+    setSelectedMfCode(null);
   }, [assetToEdit, baseCurrency]);
+
+  useEffect(() => {
+    if (assetToEdit && assetToEdit.type === 'MF' && !/^\d+$/.test(assetToEdit.ticker)) {
+      // Auto-trigger resolution search for messy slugs
+      const query = assetToEdit.name.split(' ').slice(0, 6).join(' ');
+      resolveMF(query);
+    } else {
+      setMfSuggestions([]);
+    }
+  }, [assetToEdit]);
+
+  const resolveMF = async (query) => {
+    setIsResolving(true);
+    try {
+      const results = await api.fetchMFSuggestions(query);
+      setMfSuggestions(results);
+    } catch (err) {
+      console.error('MF resolution failed', err);
+    } finally {
+      setIsResolving(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -91,6 +117,22 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
     }));
     setSuggestions([]);
     verifyTicker(ticker, formData.type, isIndian ? 'INR' : formData.currency);
+  };
+
+  const handleSuggestionToggle = (s) => {
+    const isSelected = formData.ticker === s.symbol || selectedMfCode === s.symbol;
+    if (isSelected && assetToEdit) {
+      // Unselect: Revert to original
+      setFormData(prev => ({
+        ...prev,
+        ticker: assetToEdit.ticker || '',
+        name: assetToEdit.name || '',
+        currency: assetToEdit.currency || baseCurrency
+      }));
+      setSelectedMfCode(null);
+    } else {
+      selectSuggestion(s);
+    }
   };
 
   const verifyTicker = async (ticker, type, currency) => {
@@ -252,6 +294,62 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
             </div>
         </div>
 
+        {formData.type === 'MF' && mfSuggestions.length > 0 && (
+          <div style={{ 
+            backgroundColor: 'rgba(59, 130, 246, 0.05)', 
+            border: '1px solid rgba(59, 130, 246, 0.2)',
+            borderRadius: '12px',
+            padding: '15px',
+            marginBottom: '10px'
+          }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', marginBottom: '10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              ✨ Suggested Official Codes:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {mfSuggestions.map((s, idx) => {
+                const isSelected = formData.ticker === s.symbol || selectedMfCode === s.symbol;
+                return (
+                  <div key={idx} style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    backgroundColor: isSelected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(0,0,0,0.2)',
+                    border: isSelected ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid transparent',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <div style={{ flex: 1, marginRight: '10px' }}>
+                      <div style={{ fontWeight: 600, color: isSelected ? 'var(--accent-success)' : 'var(--text-primary)' }}>{s.description}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                        Code: {s.symbol} • NAV: {formatCurrency(s.nav, 'INR')}
+                      </div>
+                    </div>
+                    <button 
+                      type="button"
+                      className={isSelected ? "btn-secondary" : "btn-primary"}
+                      style={{ 
+                        backgroundColor: isSelected ? 'rgba(34, 197, 94, 0.2)' : undefined,
+                        borderColor: isSelected ? 'var(--accent-success)' : undefined,
+                        color: isSelected ? 'var(--accent-success)' : undefined,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        cursor: 'pointer',
+                        opacity: 1
+                      }}
+                      onClick={() => handleSuggestionToggle(s)}
+                    >
+                      {isSelected ? <><CheckCircle size={14}/> Selected</> : 'Use this Fund'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Manual Fallback Price Section */}
         {!isCash && (
           <div style={{ 
@@ -274,7 +372,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
               style={{ background: 'rgba(0,0,0,0.2)' }}
             />
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: '1.4' }}>
-              If our live data provider (Yahoo Finance/Finnhub) fails to find a price for your ticker, this price will be used for your portfolio valuation instead. It automatically clears if the live data becomes available again.
+              If our live data providers fail to find a current price for your asset, this price will be used as a fallback for your valuation. It automatically clears if live data becomes available again.
             </p>
           </div>
         )}

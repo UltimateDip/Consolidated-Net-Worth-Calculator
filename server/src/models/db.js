@@ -80,7 +80,8 @@ function getUserDb(username) {
       currency TEXT DEFAULT 'INR',
       suggested_name TEXT,
       suggested_ticker TEXT,
-      display_name TEXT
+      display_name TEXT,
+      verification_status TEXT DEFAULT 'UNVERIFIED'
     );
     CREATE TABLE IF NOT EXISTS holdings_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,6 +99,13 @@ function getUserDb(username) {
       base_currency TEXT
     );
   `);
+
+  // Migrations: Add verification_status if it doesn't exist
+  try {
+    db.exec("ALTER TABLE assets ADD COLUMN verification_status TEXT DEFAULT 'UNVERIFIED'");
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   logger.info(`[DatabaseManager] Initialized connection for tenant: ${username}`);
   userDbConnections[username] = db;

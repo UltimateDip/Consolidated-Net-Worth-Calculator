@@ -36,13 +36,17 @@ class YahooFinanceAdapter extends PriceAdapter {
 
 class MFAdapter extends PriceAdapter {
   async getPrice(ticker) {
+    if (!ticker) return null;
+    
+    // FAIL FAST: If it's not a numeric AMFI code, don't attempt live fetch.
+    // Resolution is handled by the background enrichment task.
     if (!/^\d+$/.test(ticker)) {
-      throw new Error(`Invalid Mutual Fund Scheme Code: ${ticker}. Please use the 6-digit numeric code from mfapi.in`);
+      logger.debug('[MFAdapter] Skipping live fetch for unverified MF ticker: %s', ticker);
+      throw new Error('Unverified Mutual Fund. Needs linking to official code.');
     }
 
     const res = await fetch(`https://api.mfapi.in/mf/${ticker}/latest`);
     const data = await res.json();
-
     if (data && data.data && data.data.length > 0) {
       return parseFloat(data.data[0].nav);
     }
@@ -113,6 +117,7 @@ class PriceService {
 
   async fetchPrice(ticker, type, currency = 'INR') {
     if (type === 'CASH') return 1;
+    if (!ticker) return null;
 
     // --- Check cache first ---
     const cached = getGlobalDb().prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
@@ -132,6 +137,7 @@ class PriceService {
     } else if (type === 'GOLD') {
       // Gold SGBs are traded on exchanges, use Yahoo via their exchange ticker
       adapter = new YahooFinanceAdapter();
+      if (!ticker) return null;
       const exchangeTicker = ticker.includes('.') ? ticker : (ticker.startsWith('SGB') ? `${ticker}.NS` : ticker);
       logger.debug('[PriceService] Mapping GOLD ticker %s -> %s for Yahoo', ticker, exchangeTicker);
       ticker = exchangeTicker;
@@ -193,7 +199,7 @@ class PriceService {
   }
 
   async fetchProfile(ticker, finnhubKey) {
-    if (!finnhubKey) return null;
+    if (!ticker || !finnhubKey) return null;
 
     try {
       const res = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${finnhubKey}`);
@@ -213,6 +219,30 @@ class PriceService {
     } catch (err) {
       return null;
     }
+  }
+
+  async search(query) {
+    const mfAdapter = new MFAdapter();
+    return await mfAdapter.search(query);
+  }
+
+  /**
+   * Performs a search and fetches the latest NAV for each result to help with verification.
+   */
+  async searchMFWithPrices(query) {
+    const mfAdapter = new MFAdapter();
+    const searchResults = await mfAdapter.search(query);
+    const enrichedResults = await Promise.all(
+      searchResults.slice(0, 5).map(async (result) => {
+        try {
+          const nav = await mfAdapter.getPrice(result.symbol);
+          return { ...result, nav };
+        } catch (err) {
+          return { ...result, nav: null };
+        }
+      })
+    );
+    return enrichedResults;
   }
 }
 

@@ -43,10 +43,17 @@ class PortfolioRepository {
   }
 
   getAssetByTicker(ticker) {
+    if (!ticker) return null;
     return this.db.prepare('SELECT id FROM assets WHERE ticker = ?').get(ticker);
   }
 
+  getAssetLatestUnits(id) {
+    const row = this.db.prepare('SELECT units FROM holdings_history WHERE asset_id = ? ORDER BY id DESC LIMIT 1').get(id);
+    return row ? row.units : 0;
+  }
+
   checkTickerCollision(ticker, excludeId) {
+    if (!ticker) return null;
     return this.db.prepare('SELECT id FROM assets WHERE ticker = ? AND id != ?').get(ticker, excludeId);
   }
 
@@ -58,6 +65,10 @@ class PortfolioRepository {
   updateAsset(id, name, ticker, type, currency, displayName) {
     this.db.prepare('UPDATE assets SET name = ?, ticker = ?, type = ?, currency = ?, display_name = ? WHERE id = ?')
       .run(name, ticker, type, currency, displayName, id);
+  }
+
+  deleteAsset(id) {
+    this.db.prepare('DELETE FROM assets WHERE id = ?').run(id);
   }
 
   updateAssetNameAndCurrency(id, name, currency) {
@@ -91,8 +102,12 @@ class PortfolioRepository {
       .run(suggestedName, suggestedTicker, id);
   }
 
+  updateVerificationStatus(id, status) {
+    this.db.prepare('UPDATE assets SET verification_status = ? WHERE id = ?').run(status, id);
+  }
+
   getEnrichableAssets() {
-    return this.db.prepare("SELECT id, ticker, type, name FROM assets WHERE type IN ('EQUITY', 'MF')").all();
+    return this.db.prepare("SELECT id, ticker, type, name, verification_status FROM assets WHERE type IN ('EQUITY', 'MF')").all();
   }
 
   // ─── Holdings History ───────────────────────────────────────
@@ -125,20 +140,27 @@ class PortfolioRepository {
 
     const insertAsset = this.db.prepare('INSERT INTO assets (name, ticker, type, currency) VALUES (?, ?, ?, ?)');
     const insertHolding = this.db.prepare('INSERT INTO holdings_history (asset_id, units, price, entry_type) VALUES (?, ?, ?, ?)');
-    const checkAsset = this.db.prepare('SELECT id FROM assets WHERE ticker = ?');
+    const checkAssetByTicker = this.db.prepare('SELECT id FROM assets WHERE ticker = ?');
+    const checkAssetByName = this.db.prepare('SELECT id FROM assets WHERE name = ? AND ticker IS NULL');
     const insertPriceCache = globalDb.prepare('INSERT INTO price_cache (ticker, price, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, timestamp=CURRENT_TIMESTAMP');
 
     this.db.transaction(() => {
       for (const item of results) {
-        let asset = checkAsset.get(item.ticker);
+        let asset = null;
+        if (item.ticker) {
+          asset = checkAssetByTicker.get(item.ticker);
+        } else {
+          asset = checkAssetByName.get(item.name);
+        }
+
         if (!asset) {
           const info = insertAsset.run(item.name, item.ticker, item.type, item.currency || 'INR');
           asset = { id: info.lastInsertRowid };
         }
         insertHolding.run(asset.id, item.units, item.price, 'UPDATE');
 
-        // Update global price cache - Skip for CASH
-        if (item.type !== 'CASH' && item.price) {
+        // Update global price cache - Skip for CASH and NULL tickers
+        if (item.type !== 'CASH' && item.price && item.ticker) {
           insertPriceCache.run(item.ticker, item.price);
         }
         
@@ -159,7 +181,29 @@ class PortfolioRepository {
       if (assetId) {
         const collision = this.checkTickerCollision(ticker, assetId);
         if (collision) {
-          throw new Error('COLLISION');
+          logger.info(`[Merge] Ticker collision detected for ${ticker}. Merging asset ${collision.id} into ${assetId}`);
+          
+          // 1. Get units from the existing asset that already uses this ticker
+          const existingUnits = this.getAssetLatestUnits(collision.id);
+          
+          // 2. Sum them with the new units
+          const totalUnits = existingUnits + units;
+          
+          // 3. Update current asset with verified name/ticker
+          this.updateAsset(assetId, name, ticker, type, currency, displayName);
+          
+          // 4. Save combined units
+          this.insertHoldingHistory(assetId, totalUnits, price, currency, 'MERGE');
+          
+          // 5. Delete the duplicate
+          this.deleteAsset(collision.id);
+          
+          // 6. Mark as verified
+          this.updateVerificationStatus(assetId, 'VERIFIED');
+          
+          // Finish transaction early for merge case
+          this.syncManualPrice(ticker, manualPrice, type);
+          return;
         }
         this.updateAsset(assetId, name, ticker, type, currency, displayName);
       } else {
@@ -173,14 +217,16 @@ class PortfolioRepository {
       }
 
       this.insertHoldingHistory(assetId, units, price, currency, 'UPDATE');
+      this.syncManualPrice(ticker, manualPrice, type);
+      
+      // Mark as VERIFIED since this was a manual user action
+      this.updateVerificationStatus(assetId, 'VERIFIED');
 
-      // Sync manual price override to cache (Global DB) - Skip for CASH
-      if (manualPrice !== undefined && type !== 'CASH') {
-        require('../models/db').getGlobalDb().prepare(`
-          INSERT INTO price_cache (ticker, manual_price, timestamp) 
-          VALUES (?, ?, CURRENT_TIMESTAMP)
-          ON CONFLICT(ticker) DO UPDATE SET manual_price=excluded.manual_price, timestamp=CURRENT_TIMESTAMP
-        `).run(ticker, manualPrice);
+      // Auto-verify if ticker is a valid numeric code for MF (extra cleanup)
+      if (type === 'MF' && /^\d+$/.test(ticker)) {
+        this.updateVerificationStatus(assetId, 'VERIFIED');
+        // Final purge of any suggested placeholders
+        this.db.prepare('UPDATE assets SET suggested_ticker = NULL WHERE id = ?').run(assetId);
       }
       
       if (enrichFn && (type === 'EQUITY' || type === 'MF')) {
@@ -189,6 +235,17 @@ class PortfolioRepository {
     })();
 
     return assetId;
+  }
+
+  syncManualPrice(ticker, manualPrice, type) {
+    if (manualPrice !== undefined && type !== 'CASH') {
+      const globalDb = require('../models/db').getGlobalDb();
+      globalDb.prepare(`
+        INSERT INTO price_cache (ticker, manual_price, timestamp) 
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(ticker) DO UPDATE SET manual_price=excluded.manual_price, timestamp=CURRENT_TIMESTAMP
+      `).run(ticker, manualPrice);
+    }
   }
 }
 module.exports = PortfolioRepository;

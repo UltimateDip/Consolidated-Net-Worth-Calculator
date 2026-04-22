@@ -22,6 +22,7 @@ router.post('/import/:broker', upload.single('file'), controller.importBrokerDat
 
 // Symbol Search & Validation
 router.get('/search-symbols', controller.searchSymbols);
+router.get('/mf-suggestions', controller.getMFSuggestions);
 router.get('/validate-ticker', controller.validateTicker);
 
 // Name Suggestions
