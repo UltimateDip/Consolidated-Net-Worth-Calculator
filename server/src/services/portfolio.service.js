@@ -1,30 +1,26 @@
-const PortfolioRepository = require('../repositories/portfolio.repository');
+const repo = require('../repositories/portfolio.repository');
 const priceService = require('./PriceService');
 const currencyService = require('./CurrencyService');
 const { BrokerParserFactory } = require('./BrokerParser');
 const logger = require('../utils/logger');
 
 class PortfolioService {
-  constructor(userDb, username) {
-    this.repo = new PortfolioRepository(userDb);
-    this.username = username;
-  }
 
   // ─── Asset Enrichment ───────────────────────────────────────
 
   async triggerAssetEnrichment(assetId, ticker, type, currentName) {
     try {
-      const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
       if (type === 'EQUITY') {
-        const profile = await priceService.fetchProfile(ticker, finnhubKey);
+        const profile = await priceService.fetchProfile(ticker);
         if (profile && profile.name && profile.name !== currentName) {
-          this.repo.updateSuggestedName(assetId, profile.name);
+          repo.updateSuggestedName(assetId, profile.name);
         }
       } else if (type === 'MF') {
+        // If it's a mutual fund and doesn't have a numeric ticker, try to find the AMFI code
         if (!/^\d+$/.test(ticker)) {
           const lookup = await priceService.findMFCodeByName(currentName);
           if (lookup && (lookup.name !== currentName || lookup.ticker !== ticker)) {
-            this.repo.updateSuggestedNameAndTicker(assetId, lookup.name, lookup.ticker);
+            repo.updateSuggestedNameAndTicker(assetId, lookup.name, lookup.ticker);
           }
         }
       }
@@ -36,19 +32,24 @@ class PortfolioService {
   // ─── Portfolio Summary ──────────────────────────────────────
 
   async getPortfolio() {
-    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'USD';
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-    const assets = this.repo.getAllAssetsWithLatestHoldings();
+    const baseCurrency = repo.getSetting('BASE_CURRENCY') || 'USD';
+    const assets = repo.getAllAssetsWithLatestHoldings();
 
     // --- Phase 1: Fetch all live prices concurrently ---
     const pricePromises = assets.map(asset => {
       if (asset.type === 'CASH') {
+        logger.debug('[PortfolioService] %s: CASH type detected, resolve price to 1', asset.name);
         return Promise.resolve(1);
       }
       if (['EQUITY', 'MF', 'GOLD'].includes(asset.type)) {
-        return priceService.fetchPrice(asset.ticker, asset.type, asset.currency, finnhubKey)
-          .catch(err => null);
+        logger.debug('[PortfolioService] %s: Fetching live price for %s (%s)', asset.name, asset.ticker, asset.type);
+        return priceService.fetchPrice(asset.ticker, asset.type, asset.currency)
+          .catch(err => {
+            logger.error('[PortfolioService] %s: Price fetch failed for %s: %s', asset.name, asset.ticker, err.message);
+            return null;
+          });
       }
+      logger.debug('[PortfolioService] %s: Unsupported type %s, resolve price to null', asset.name, asset.type);
       return Promise.resolve(null);
     });
 
@@ -79,8 +80,10 @@ class PortfolioService {
       let priceStatus = 'AUTOMATED';
       if (priceFromService === null) {
         priceStatus = 'FAILED';
+        logger.warn('[PortfolioService] %s: Using FAILED status (no market price found)', asset.name);
       } else if (details && details.manual_price !== null && details.manual_price !== undefined) {
         priceStatus = 'MANUAL';
+        logger.debug('[PortfolioService] %s: Using MANUAL status (fallback price: %d)', asset.name, details.manual_price);
       }
 
       const currentPrice = priceFromService || asset.avg_price || 0;
@@ -107,7 +110,7 @@ class PortfolioService {
     // Save daily snapshot with FX rates for accurate historical conversion
     const today = new Date().toISOString().split('T')[0];
     const fxSnapshot = { [baseCurrency]: 1, ...fxRateMap };
-    this.repo.saveSnapshot(today, totalNetWorth, baseCurrency, JSON.stringify(fxSnapshot));
+    repo.saveSnapshot(today, totalNetWorth, baseCurrency, JSON.stringify(fxSnapshot));
 
     return { baseCurrency, totalNetWorth, assets: enrichedAssets };
   }
@@ -115,9 +118,10 @@ class PortfolioService {
   // ─── History ────────────────────────────────────────────────
 
   async getHistory() {
-    const baseCurrency = this.repo.getSetting('BASE_CURRENCY') || 'USD';
-    const snapshots = this.repo.getSnapshots(90);
+    const baseCurrency = repo.getSetting('BASE_CURRENCY') || 'USD';
+    const snapshots = repo.getSnapshots(90);
 
+    // Collect legacy snapshots (no stored fx_rates) that need a live fallback
     const legacyCurrencies = [...new Set(
       snapshots
         .filter(s => !s.fx_rates && s.base_currency && s.base_currency !== baseCurrency)
@@ -135,6 +139,7 @@ class PortfolioService {
       fxResults.forEach(({ cur, rate }) => { legacyFxMap[cur] = rate; });
     }
 
+    // Normalise each snapshot using its own stored FX rates
     return snapshots.map(s => {
       const snapshotCurrency = s.base_currency || baseCurrency;
 
@@ -143,6 +148,7 @@ class PortfolioService {
       }
 
       let rate = 1;
+
       if (s.fx_rates) {
         const storedRates = JSON.parse(s.fx_rates);
         if (storedRates[baseCurrency]) {
@@ -165,11 +171,11 @@ class PortfolioService {
   // ─── Settings ───────────────────────────────────────────────
 
   getSettings() {
-    return this.repo.getSettings();
+    return repo.getSettings();
   }
 
   saveSetting(key, value) {
-    this.repo.upsertSetting(key, value);
+    repo.upsertSetting(key, value);
   }
 
   // ─── Manual Holding ─────────────────────────────────────────
@@ -177,10 +183,12 @@ class PortfolioService {
   addOrUpdateHolding(holdingData) {
     let { id, name, ticker, type, units, price, currency, manualPrice, displayName } = holdingData;
     
+    // Validate
     if (!name || !type || units === undefined) {
       throw new Error('Missing required fields');
     }
 
+    // Auto-generate missing tickers based on type
     if (!ticker || ticker.trim() === '') {
       if (type === 'CASH') {
         ticker = `CASH_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
@@ -189,6 +197,7 @@ class PortfolioService {
       }
     }
 
+    // Auto-ensure price = 1 for CASH if undefined
     if (type === 'CASH' && (!price || isNaN(parseFloat(price)))) {
       price = 1;
     }
@@ -199,7 +208,7 @@ class PortfolioService {
       );
     };
     
-    return this.repo.upsertHolding(
+    return repo.upsertHolding(
       { id, name, ticker, type, units, price, currency: currency || 'USD', manualPrice, displayName },
       enrichFn
     );
@@ -217,7 +226,7 @@ class PortfolioService {
       );
     };
     
-    this.repo.importBrokerResults(results, enrichFn);
+    repo.importBrokerResults(results, enrichFn);
 
     return results.length;
   }
@@ -225,67 +234,58 @@ class PortfolioService {
   // ─── Symbol Search ──────────────────────────────────────────
 
   async searchSymbols(query, type) {
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-    return priceService.searchSymbols(query, type, finnhubKey);
+    return priceService.searchSymbols(query, type);
   }
 
   // ─── Ticker Validation ──────────────────────────────────────
 
   async validateTicker(ticker, type, currency) {
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-    return priceService.fetchPrice(ticker, type, currency, finnhubKey);
+    return priceService.fetchPrice(ticker, type, currency);
   }
 
   // ─── Name Suggestions ──────────────────────────────────────
 
   applySuggestion(assetId) {
-    const asset = this.repo.getAssetWithSuggestion(assetId);
+    const asset = repo.getAssetWithSuggestion(assetId);
     if (!asset) return null; 
-
-    if (asset.suggested_name || asset.suggested_ticker) {
-      this.repo.applySuggestedName(
-        assetId, 
-        asset.suggested_name || asset.name, 
-        asset.suggested_ticker || asset.ticker
-      );
+    
+    if (!asset.suggested_name && !asset.suggested_ticker) {
+      return true; // Already applied
     }
-    return asset;
+    const newName = asset.suggested_name || asset.name;
+    const newTicker = asset.suggested_ticker || asset.ticker;
+    
+    logger.info(`[Service] Updating asset ${assetId}: ticker="${asset.ticker}" -> "${newTicker}", name="${asset.name}" -> "${newName}"`);
+    repo.applySuggestedName(assetId, newName, newTicker);
+    return true;
   }
 
-  rejectSuggestion(assetId) {
-    this.repo.clearSuggestedName(assetId);
+  ignoreSuggestion(assetId) {
+    logger.info(`[Service] Ignoring suggestion for asset ${assetId}`);
+    repo.clearSuggestedName(assetId);
   }
 
-  async performBulkEnrichment() {
-    const assets = this.repo.getEnrichableAssets();
-    let count = 0;
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
+  // ─── Bulk Enrichment ───────────────────────────────────────
 
-    for (const asset of assets) {
+  async startBulkEnrichment() {
+    const assets = repo.getEnrichableAssets();
+    logger.info(`[Service] Starting bulk enrichment for ${assets.length} items (EQUITY + MF)`);
+ 
+    // Process in background to prevent timeout
+    (async () => {
       try {
-        if (asset.type === 'EQUITY') {
-          const profile = await priceService.fetchProfile(asset.ticker, finnhubKey);
-          if (profile && profile.name && profile.name !== asset.name) {
-            this.repo.updateSuggestedName(asset.id, profile.name);
-            count++;
-          }
-        } else if (asset.type === 'MF') {
-          if (!/^\d+$/.test(asset.ticker)) {
-            const lookup = await priceService.findMFCodeByName(asset.name);
-            if (lookup && (lookup.name !== asset.name || lookup.ticker !== asset.ticker)) {
-              this.repo.updateSuggestedNameAndTicker(asset.id, lookup.name, lookup.ticker);
-              count++;
-            }
-          }
+        for (const asset of assets) {
+          await this.triggerAssetEnrichment(asset.id, asset.ticker, asset.type, asset.name);
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
+        logger.info(`[Service] Bulk enrichment completed`);
       } catch (err) {
-        logger.error(`[BulkEnrich] Failed for ${asset.ticker}: ${err.message}`);
+        logger.error(`[Background Task] Bulk enrichment process failed: ${err.message}`);
       }
-      
-      await new Promise(resolve => setTimeout(resolve, 100)); // rate limiting
-    }
-    return count;
+    })();
+ 
+    return assets.length;
   }
 }
 
-module.exports = PortfolioService;
+module.exports = new PortfolioService();
