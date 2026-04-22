@@ -9,6 +9,9 @@ class PriceAdapter {
   }
 }
 
+// NOTE: FinnhubAdapter is NOT used for price fetching.
+// It exists only as a reference. All pricing goes through Yahoo Finance.
+// Finnhub is used exclusively for: Symbol Search + Company Profile Enrichment.
 class FinnhubAdapter extends PriceAdapter {
   constructor(apiKey) {
     super();
@@ -81,13 +84,6 @@ class MFAdapter extends PriceAdapter {
 }
 
 class PriceService {
-  
-  getAdapters(finnhubKey) {
-    return {
-      'EQUITY': () => new FinnhubAdapter(finnhubKey),
-      'MF': () => new MFAdapter()
-    };
-  }
 
   async findMFCodeByName(name) {
     try {
@@ -113,9 +109,8 @@ class PriceService {
     }
 
     try {
-      const equityAdapter = this.getAdapters(finnhubKey)['EQUITY']();
-      if (equityAdapter.apiKey) {
-        const finnhubRes = await fetch(`https://finnhub.io/api/v1/search?q=${query}&token=${equityAdapter.apiKey}`);
+      if (finnhubKey) {
+        const finnhubRes = await fetch(`https://finnhub.io/api/v1/search?q=${query}&token=${finnhubKey}`);
         const finnhubData = await finnhubRes.json();
         if (finnhubData.result) {
           results = [...results, ...finnhubData.result.map(r => ({
@@ -142,20 +137,7 @@ class PriceService {
   async fetchPrice(ticker, type, currency = 'INR', finnhubKey = null) {
     if (type === 'CASH') return 1;
 
-    if (type === 'GOLD') {
-      try {
-        logger.debug('[PriceService] Processing GOLD ticker: %s', ticker);
-        const exchangeTicker = ticker.includes('.') ? ticker : (ticker.startsWith('SGB') ? `${ticker}.NS` : ticker);
-        logger.debug('[PriceService] Mapping GOLD to exchange ticker: %s', exchangeTicker);
-        const marketPrice = await this.getAdapters(finnhubKey)['EQUITY']().getPrice(exchangeTicker);
-        if (marketPrice && marketPrice > 0) {
-          return marketPrice;
-        }
-      } catch (e) {
-        logger.debug('[PortfolioService] SGB market fetch failed (expected if non-exchange gold): %s', e.message);
-      }
-    }
-
+    // --- Check cache first ---
     const cached = getGlobalDb().prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker);
     if (cached) {
       const isFresh = (new Date() - new Date(cached.timestamp)) < CACHE_TTL_MS;
@@ -164,20 +146,23 @@ class PriceService {
       }
     }
 
+    // --- Determine adapter ---
+    // Yahoo Finance for ALL equity and gold price fetching
+    // MF API for mutual funds
     let adapter;
     if (type === 'EQUITY') {
-      if (ticker.endsWith('.NS') || ticker.endsWith('.BO') || currency === 'INR') {
-        adapter = new YahooFinanceAdapter();
-      } else {
-        adapter = this.getAdapters(finnhubKey)['EQUITY']();
-      }
+      adapter = new YahooFinanceAdapter();
+    } else if (type === 'GOLD') {
+      // Gold SGBs are traded on exchanges, use Yahoo via their exchange ticker
+      adapter = new YahooFinanceAdapter();
+      const exchangeTicker = ticker.includes('.') ? ticker : (ticker.startsWith('SGB') ? `${ticker}.NS` : ticker);
+      logger.debug('[PriceService] Mapping GOLD ticker %s -> %s for Yahoo', ticker, exchangeTicker);
+      ticker = exchangeTicker;
+    } else if (type === 'MF') {
+      adapter = new MFAdapter();
     } else {
-      const getAdapter = this.getAdapters(finnhubKey)[type];
-      if (!getAdapter) {
-        const result = cached ? (cached.manual_price || cached.price) : null;
-        return result;
-      }
-      adapter = getAdapter();
+      // Unknown type — return cached or null
+      return cached ? (cached.manual_price || cached.price) : null;
     }
 
     try {
@@ -191,6 +176,7 @@ class PriceService {
 
       return price;
     } catch (err) {
+      logger.debug('[PriceService] Price fetch failed for %s: %s', ticker, err.message);
       if (cached) {
         return cached.manual_price || cached.price;
       }

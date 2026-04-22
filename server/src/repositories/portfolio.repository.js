@@ -117,22 +117,16 @@ class PortfolioRepository {
     ).all(limit);
   }
 
-  // ─── Price Cache ────────────────────────────────────────────
-
-  upsertPriceCache(ticker, price) {
-    this.db.prepare(`
-      INSERT INTO price_cache (ticker, price, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, timestamp=CURRENT_TIMESTAMP
-    `).run(ticker, price);
-  }
-
   // ─── Broker Import (Transactional) ─────────────────────────
 
   importBrokerResults(results, triggerEnrichmentFn) {
+    const { getGlobalDb } = require('../models/db');
+    const globalDb = getGlobalDb();
+
     const insertAsset = this.db.prepare('INSERT INTO assets (name, ticker, type, currency) VALUES (?, ?, ?, ?)');
     const insertHolding = this.db.prepare('INSERT INTO holdings_history (asset_id, units, price, entry_type) VALUES (?, ?, ?, ?)');
     const checkAsset = this.db.prepare('SELECT id FROM assets WHERE ticker = ?');
-    const insertPriceCache = this.db.prepare('INSERT INTO price_cache (ticker, price, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, timestamp=CURRENT_TIMESTAMP');
+    const insertPriceCache = globalDb.prepare('INSERT INTO price_cache (ticker, price, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, timestamp=CURRENT_TIMESTAMP');
 
     this.db.transaction(() => {
       for (const item of results) {
@@ -143,8 +137,9 @@ class PortfolioRepository {
         }
         insertHolding.run(asset.id, item.units, item.price, 'UPDATE');
 
-        if (item.currentPrice !== undefined && item.currentPrice !== null) {
-          insertPriceCache.run(item.ticker, item.currentPrice);
+        // Update global price cache - Skip for CASH
+        if (item.type !== 'CASH' && item.price) {
+          insertPriceCache.run(item.ticker, item.price);
         }
         
         if (triggerEnrichmentFn && (item.type === 'EQUITY' || item.type === 'MF')) {
@@ -179,8 +174,8 @@ class PortfolioRepository {
 
       this.insertHoldingHistory(assetId, units, price, currency, 'UPDATE');
 
-      // Sync manual price override to cache (Global DB)
-      if (manualPrice !== undefined) {
+      // Sync manual price override to cache (Global DB) - Skip for CASH
+      if (manualPrice !== undefined && type !== 'CASH') {
         require('../models/db').getGlobalDb().prepare(`
           INSERT INTO price_cache (ticker, manual_price, timestamp) 
           VALUES (?, ?, CURRENT_TIMESTAMP)
