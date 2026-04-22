@@ -88,6 +88,13 @@ class PortfolioController {
     res.json(results);
   });
 
+  // GET /api/mf-suggestions
+  getMFSuggestions = asyncHandler(async (req, res) => {
+    const { q } = req.query;
+    const results = await this.getService(req).getMFSuggestions(q);
+    res.json(results);
+  });
+
   // GET /api/validate-ticker
   validateTicker = asyncHandler(async (req, res, next) => {
     try {

@@ -150,6 +150,12 @@ export const searchSymbols = async (query, type) => {
   return res.json();
 };
 
+export const fetchMFSuggestions = async (query) => {
+  const res = await fetchWithAuth(`${API_URL}/mf-suggestions?q=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error('Failed to fetch MF suggestions');
+  return res.json();
+};
+
 /**
  * Validate a ticker and fetch its current price
  */

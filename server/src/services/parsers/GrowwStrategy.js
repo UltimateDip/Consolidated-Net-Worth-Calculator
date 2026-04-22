@@ -35,13 +35,9 @@ class GrowwStrategy extends BaseBrokerStrategy {
     const currentValue = map.currentValIdx !== -1 ? parseFloat(row[map.currentValIdx]) : null;
     const isin = map.isinIdx !== -1 ? row[map.isinIdx] : null;
 
-    let ticker;
+    let ticker = null;
     if (isin && typeof isin === 'string' && isin.length > 5) {
       ticker = isin.trim();
-    } else {
-      ticker = map.isMutualFund
-        ? `MF_${nameStr.trim().substring(0, 30).toUpperCase().replace(/[^A-Z0-9]/g, '_')}`
-        : nameStr.trim();
     }
 
     return {
@@ -58,12 +54,14 @@ class GrowwStrategy extends BaseBrokerStrategy {
   postProcess(results) {
     const merged = {};
     for (const item of results) {
-      if (merged[item.ticker]) {
-        merged[item.ticker].units += item.units;
-        merged[item.ticker].investedValue += item.investedValue;
-        merged[item.ticker].currentValue += item.currentValue;
+      // Use ticker (ISIN) if available, otherwise fallback to Name
+      const key = item.ticker || item.name;
+      if (merged[key]) {
+        merged[key].units += item.units;
+        merged[key].investedValue += item.investedValue;
+        merged[key].currentValue += item.currentValue;
       } else {
-        merged[item.ticker] = { ...item };
+        merged[key] = { ...item };
       }
     }
 

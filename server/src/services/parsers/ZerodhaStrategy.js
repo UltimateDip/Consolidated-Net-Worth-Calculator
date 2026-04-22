@@ -44,12 +44,14 @@ class ZerodhaStrategy extends BaseBrokerStrategy {
   postProcess(results) {
     const merged = {};
     for (const item of results) {
-      if (merged[item.ticker]) {
-        merged[item.ticker].units += item.units;
-        merged[item.ticker].investedValue += item.investedValue;
-        if (item.currentPrice !== undefined) merged[item.ticker].currentPrice = item.currentPrice;
+      // Use ticker if available, otherwise fallback to Name
+      const key = item.ticker || item.name;
+      if (merged[key]) {
+        merged[key].units += item.units;
+        merged[key].investedValue += item.investedValue;
+        if (item.currentPrice !== undefined) merged[key].currentPrice = item.currentPrice;
       } else {
-        merged[item.ticker] = { ...item };
+        merged[key] = { ...item };
       }
     }
 

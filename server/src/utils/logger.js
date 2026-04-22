@@ -18,18 +18,20 @@ const consoleFormat = winston.format.combine(
   })
 );
 
+const logDir = path.join(__dirname, '..', '..', 'logs');
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'debug', // Default to debug for better visibility
   format: logFormat,
   transports: [
     new winston.transports.DailyRotateFile({
-      filename: path.join('logs', 'error-%DATE%.log'),
+      filename: path.join(logDir, 'error-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       level: 'error',
       maxFiles: '14d',
     }),
     new winston.transports.DailyRotateFile({
-      filename: path.join('logs', 'combined-%DATE%.log'),
+      filename: path.join(logDir, 'combined-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       maxFiles: '14d',
     }),

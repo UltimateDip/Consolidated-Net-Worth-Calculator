@@ -21,9 +21,9 @@ class PortfolioService {
           this.repo.updateSuggestedName(assetId, profile.name);
         }
       } else if (type === 'MF') {
-        if (!/^\d+$/.test(ticker)) {
+        if (ticker && !/^\d+$/.test(ticker)) {
           const lookup = await priceService.findMFCodeByName(currentName);
-          if (lookup && (lookup.name !== currentName || lookup.ticker !== ticker)) {
+          if (lookup && (lookup.name !== currentName || (lookup.ticker !== ticker && ticker !== null))) {
             this.repo.updateSuggestedNameAndTicker(assetId, lookup.name, lookup.ticker);
           }
         }
@@ -202,7 +202,7 @@ class PortfolioService {
       if (type === 'CASH') {
         ticker = `CASH_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
       } else {
-        throw new Error('TICKER_REQUIRED');
+        ticker = null;
       }
     }
 
@@ -242,8 +242,13 @@ class PortfolioService {
   // ─── Symbol Search ──────────────────────────────────────────
 
   async searchSymbols(query, type) {
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-    return priceService.searchSymbols(query, type, finnhubKey);
+    if (!query || query.length < 2) return [];
+    return await priceService.search(query);
+  }
+
+  async getMFSuggestions(query) {
+    if (!query || query.length < 2) return [];
+    return await priceService.searchMFWithPrices(query);
   }
 
   // ─── Ticker Validation ──────────────────────────────────────
@@ -286,10 +291,11 @@ class PortfolioService {
             count++;
           }
         } else if (asset.type === 'MF') {
-          if (!/^\d+$/.test(asset.ticker)) {
-            const lookup = await priceService.findMFCodeByName(asset.name);
-            if (lookup && (lookup.name !== asset.name || lookup.ticker !== asset.ticker)) {
-              this.repo.updateSuggestedNameAndTicker(asset.id, lookup.name, lookup.ticker);
+          // If it's an unverified slug, check if we can find ANY match to nudge the user
+          if (asset.verification_status === 'UNVERIFIED' && (!asset.ticker || !/^\d+$/.test(asset.ticker))) {
+            const results = await priceService.search(asset.name);
+            if (results && results.length > 0) {
+              this.repo.updateVerificationStatus(asset.id, 'NEEDS_REVIEW');
               count++;
             }
           }
