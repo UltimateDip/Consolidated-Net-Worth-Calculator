@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import useStore from '../store/useStore';
 import { UploadCloud, Info } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 
 import * as api from '../api/portfolioApi';
 
@@ -81,10 +82,14 @@ const BrokerImport = () => {
               </Tooltip>
             )}
           </label>
-          <select value={broker} onChange={(e) => setBroker(e.target.value)}>
-            <option value="zerodha">Zerodha</option>
-            <option value="groww">Groww</option>
-          </select>
+          <CustomSelect 
+            value={broker} 
+            onChange={(e) => setBroker(e.target.value)}
+            options={[
+              { value: 'zerodha', label: 'Zerodha' },
+              { value: 'groww', label: 'Groww' }
+            ]}
+          />
         </div>
 
         <div style={{ 

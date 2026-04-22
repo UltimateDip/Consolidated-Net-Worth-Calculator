@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import useStore from '../store/useStore';
-import { X, Search, CheckCircle, AlertCircle, RefreshCcw } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, RefreshCcw } from 'lucide-react';
 
 import * as api from '../api/portfolioApi';
 import { formatCurrency } from '../utils/formatters';
+import CustomSelect from './CustomSelect';
+import Autocomplete from './Autocomplete';
 
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
 
@@ -25,7 +27,6 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
   const [formData, setFormData] = useState(defaultState);
   const [status, setStatus] = useState('');
   const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [validation, setValidation] = useState({ loading: false, price: null, error: null });
   const searchTimeout = useRef(null);
@@ -69,7 +70,6 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
       try {
         const data = await api.searchSymbols(query, currentType);
         setSuggestions(data.slice(0, 5));
-        setShowSuggestions(true);
       } catch (err) {
         console.error('Search failed', err);
       } finally {
@@ -90,7 +90,6 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
       currency: isIndian ? 'INR' : prev.currency
     }));
     setSuggestions([]);
-    setShowSuggestions(false);
     verifyTicker(ticker, formData.type, isIndian ? 'INR' : formData.currency);
   };
 
@@ -148,7 +147,7 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
   const isMetal = formData.type === 'GOLD';
 
   return (
-    <div className="glass-panel animate-fade-in" style={{ position: 'relative' }}>
+    <div className="glass-panel animate-fade-in" style={{ position: 'relative', zIndex: 10 }}>
       {assetToEdit && (
         <button 
           onClick={onClearEdit} 
@@ -164,12 +163,19 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
             <div>
                 <label>Asset Type</label>
-                <select name="type" value={formData.type} onChange={handleChange} required disabled={!!assetToEdit}>
-                    <option value="CASH">Cash</option>
-                    <option value="EQUITY">Equity / Stock</option>
-                    <option value="MF">Mutual Fund</option>
-                    <option value="GOLD">Gold</option>
-                </select>
+                <CustomSelect 
+                  name="type" 
+                  value={formData.type} 
+                  onChange={handleChange} 
+                  required 
+                  disabled={!!assetToEdit}
+                  options={[
+                    { value: 'CASH', label: 'Cash' },
+                    { value: 'EQUITY', label: 'Equity / Stock' },
+                    { value: 'MF', label: 'Mutual Fund' },
+                    { value: 'GOLD', label: 'Gold' },
+                  ]}
+                />
             </div>
             <div style={{ flex: 1 }}>
                 <label>Asset Name</label>
@@ -189,37 +195,20 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
                     {isSearching && <RefreshCcw size={12} className="spin" />}
                   </label>
                   <div style={{ position: 'relative' }}>
-                      <input 
-                        type="text" 
-                        name="ticker" 
-                        value={formData.ticker} 
-                        onChange={handleChange} 
-                        placeholder={formData.type === 'MF' ? "e.g. 101234 (Scheme Code)" : "AAPL, RELIANCE.NS"} 
-                        autoComplete="off"
-                        required={!isCash} 
-                        disabled={!!assetToEdit} 
+                      <Autocomplete
+                        name="ticker"
+                        value={formData.ticker}
+                        onChange={handleChange}
+                        onSelect={selectSuggestion}
+                        suggestions={suggestions}
+                        placeholder={formData.type === 'MF' ? "e.g. 101234 (Scheme Code)" : "AAPL, RELIANCE.NS"}
+                        required={!isCash}
+                        disabled={!!assetToEdit}
                       />
                       {formData.type === 'MF' && (
                         <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                           Use the numeric Scheme Code from <a href="https://www.mfapi.in/" target="_blank" rel="noreferrer" style={{color: 'var(--accent-primary)'}}>mfapi.in</a> for live prices.
                         </p>
-                      )}
-                      {showSuggestions && suggestions.length > 0 && (
-                        <div style={{
-                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                          background: 'rgba(30, 34, 42, 0.95)', border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '8px', marginTop: '4px', overflow: 'hidden', backdropFilter: 'blur(10px)'
-                        }}>
-                          {suggestions.map((s, i) => (
-                            <div key={i} onClick={() => selectSuggestion(s)} style={{
-                              padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)',
-                              fontSize: '0.85rem'
-                            }} className="suggestion-item">
-                              <span style={{ fontWeight: 600, color: 'var(--accent-primary)' }}>{s.symbol}</span>
-                              <span style={{ marginLeft: '8px', color: 'var(--text-secondary)' }}>{s.description}</span>
-                            </div>
-                          ))}
-                        </div>
                       )}
                   </div>
                   {/* Validation Feedback */}
@@ -253,9 +242,13 @@ const ManualEntry = ({ assetToEdit, onClearEdit }) => {
             
             <div>
                 <label>Currency</label>
-                <select name="currency" value={formData.currency} onChange={handleChange} required>
-                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <CustomSelect 
+                  name="currency" 
+                  value={formData.currency} 
+                  onChange={handleChange} 
+                  required
+                  options={CURRENCIES.map(c => ({ value: c, label: c }))}
+                />
             </div>
         </div>
 

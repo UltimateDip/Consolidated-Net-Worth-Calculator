@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import { Info, RefreshCw } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 
 import * as api from '../api/portfolioApi';
 
@@ -84,16 +85,17 @@ const Settings = () => {
           <Tooltip>This currency will be used to display your total net worth on the dashboard. All conversions will use live forex rates.</Tooltip>
         </label>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <select 
+          <CustomSelect 
             name="BASE_CURRENCY" 
             value={localSettings['BASE_CURRENCY'] || 'INR'} 
             onChange={handleChange}
-          >
-            <option value="INR">INR (₹)</option>
-            <option value="USD">USD ($)</option>
-            <option value="EUR">EUR (€)</option>
-            <option value="GBP">GBP (£)</option>
-          </select>
+            options={[
+              { value: 'INR', label: 'INR (₹)' },
+              { value: 'USD', label: 'USD ($)' },
+              { value: 'EUR', label: 'EUR (€)' },
+              { value: 'GBP', label: 'GBP (£)' }
+            ]}
+          />
           <button className="btn-secondary" onClick={() => handleSave('BASE_CURRENCY')}>Save</button>
         </div>
       </div>
