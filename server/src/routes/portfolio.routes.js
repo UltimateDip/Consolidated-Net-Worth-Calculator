@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
-const controller = require('../controllers/portfolio.controller');
+const PortfolioController = require('../controllers/portfolio.controller').default;
+const controller = new PortfolioController();
 const { validateSchema } = require('../middlewares/validate');
 const { addHoldingSchema, saveSettingsSchema } = require('../validators/portfolio.validators');
 
@@ -14,7 +15,7 @@ router.get('/history', controller.getHistory);
 
 // Settings
 router.get('/settings', controller.getSettings);
-router.post('/settings', validateSchema(saveSettingsSchema), controller.saveSettings);
+router.post('/settings', validateSchema(saveSettingsSchema), controller.saveSetting);
 
 // Holdings
 router.post('/holdings', validateSchema(addHoldingSchema), controller.addHolding);

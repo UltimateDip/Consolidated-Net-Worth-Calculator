@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 const portfolioRoutes = require('./routes/portfolio.routes');
 const requestLogger = require('./middlewares/requestLogger');
 const logger = require('./utils/logger');
-const errorHandler = require('./middlewares/errorHandler');
+const { errorHandler } = require('./middlewares/errorHandler');
 
 // Initialize environment variables if present
 dotenv.config();

@@ -3,6 +3,7 @@ import priceService from './PriceService';
 import currencyService from './CurrencyService';
 import BrokerParserFactory from './parsers/BrokerParserFactory';
 import logger from '../utils/logger';
+import { BadRequestError } from '../utils/errors';
 
 interface HoldingInput {
   id?: number;
@@ -58,7 +59,7 @@ export default class PortfolioService {
     let totalNetWorth = 0;
     const enrichedAssets = assets.map((asset: any) => {
       let currentPrice = 0;
-      
+
       if (asset.type === 'CASH') {
         currentPrice = 1;
       } else if (asset.ticker) {
@@ -131,7 +132,7 @@ export default class PortfolioService {
     const enrichedAssets = assets.map((asset: any, i: number) => {
       const priceFromService = livePrices[i];
       const details = priceService.getPriceDetails(asset.ticker);
-      
+
       let priceStatus = 'AUTOMATED';
       if (asset.type === 'CASH') {
         priceStatus = 'MANUAL';
@@ -144,7 +145,7 @@ export default class PortfolioService {
       const currentPrice = priceFromService || asset.avg_price || 0;
       let finalPrice = currentPrice;
       const assetCurrency = asset.currency || 'INR';
-      
+
       if (assetCurrency !== baseCurrency) {
         finalPrice = currentPrice * (fxRateMap[assetCurrency] || 1);
       }
@@ -208,9 +209,9 @@ export default class PortfolioService {
 
   addOrUpdateHolding(holdingData: HoldingInput): number {
     let { id, name, ticker, type, units, price, currency, manualPrice, displayName } = holdingData;
-    
+
     if (!name || !type || units === undefined) {
-      throw new Error('Missing required fields');
+      throw new BadRequestError('Missing required fields: name, type, and units are required');
     }
 
     // Normalize ticker for CASH assets
@@ -240,10 +241,10 @@ export default class PortfolioService {
         if (collision) {
           // MERGE: Another asset already owns this ticker
           logger.info(`[Merge] Ticker collision detected for ${ticker}. Merging asset ${collision.id} into ${assetId}`);
-          
+
           const existingUnits = this.repo.getAssetLatestUnits(collision.id);
           const totalUnits = existingUnits + units;
-          
+
           this.repo.updateAsset(assetId, name, ticker!, type, currency, displayName);
           this.repo.insertHoldingHistory(assetId, totalUnits, price || null, currency, 'MERGE');
           this.repo.deleteAsset(collision.id);
@@ -351,12 +352,12 @@ export default class PortfolioService {
 
   applySuggestion(assetId: number): any {
     const asset = this.repo.getAssetWithSuggestion(assetId);
-    if (!asset) return null; 
+    if (!asset) return null;
 
     if (asset.suggested_name || asset.suggested_ticker) {
       this.repo.applySuggestedName(
-        assetId, 
-        asset.suggested_name || asset.name, 
+        assetId,
+        asset.suggested_name || asset.name,
         asset.suggested_ticker || asset.ticker
       );
     }
@@ -393,7 +394,7 @@ export default class PortfolioService {
       } catch (err: any) {
         logger.error(`[BulkEnrich] Failed for ${asset.ticker}: ${err.message}`);
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 100)); // rate limiting
     }
     return count;
