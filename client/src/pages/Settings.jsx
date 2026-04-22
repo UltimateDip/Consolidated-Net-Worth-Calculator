@@ -34,8 +34,6 @@ const Settings = () => {
   const { settings, updateSetting } = useStore();
   const [localSettings, setLocalSettings] = useState({});
   const [isEnriching, setIsEnriching] = useState(false);
-  const [passwordState, setPasswordState] = useState({ current: '', new: '' });
-  const [passwordStatus, setPasswordStatus] = useState({ loading: false, error: null, success: null });
 
   useEffect(() => {
     setLocalSettings(settings);
@@ -62,18 +60,6 @@ const Settings = () => {
     }
   };
 
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    setPasswordStatus({ loading: true, error: null, success: null });
-    try {
-      const data = await api.changePassword(passwordState.current, passwordState.new);
-      setPasswordStatus({ loading: false, error: null, success: data.message });
-      setPasswordState({ current: '', new: '' });
-    } catch (err) {
-      setPasswordStatus({ loading: false, error: err.message, success: null });
-    }
-  };
-
   return (
     <div className="glass-panel animate-fade-in" style={{ maxWidth: '600px', margin: '0 auto' }}>
       <h2 style={{ marginBottom: '24px' }}>Settings</h2>
@@ -97,43 +83,6 @@ const Settings = () => {
           <button className="btn-secondary" onClick={() => handleSave('BASE_CURRENCY')}>Save</button>
         </div>
       </div>
-
-      <hr style={{ borderColor: 'var(--border-color)', margin: '30px 0' }} />
-      <h3>Account Security</h3>
-      <p style={{ fontSize: '0.9rem', marginBottom: '20px' }}>Change your current password securely.</p>
-      
-      <form onSubmit={handlePasswordChange} style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <div>
-          <label>Current Password</label>
-          <input 
-            type="password" 
-            placeholder="Enter current password"
-            value={passwordState.current}
-            onChange={(e) => setPasswordState({ ...passwordState, current: e.target.value })}
-            required
-          />
-        </div>
-        <div>
-          <label>New Password (min. 6 characters)</label>
-          <input 
-            type="password" 
-            placeholder="Enter new password"
-            value={passwordState.new}
-            onChange={(e) => setPasswordState({ ...passwordState, new: e.target.value })}
-            required
-            minLength={6}
-          />
-        </div>
-        
-        {passwordStatus.error && <p style={{ color: '#ef4444', margin: '0' }}>{passwordStatus.error}</p>}
-        {passwordStatus.success && <p style={{ color: '#10b981', margin: '0' }}>{passwordStatus.success}</p>}
-        
-        <div>
-          <button type="submit" className="btn-secondary" disabled={passwordStatus.loading}>
-            {passwordStatus.loading ? 'Updating...' : 'Change Password'}
-          </button>
-        </div>
-      </form>
 
       <hr style={{ borderColor: 'var(--border-color)', margin: '30px 0' }} />
       <h3>API Integrations</h3>
