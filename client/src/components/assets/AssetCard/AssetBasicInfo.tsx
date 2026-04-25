@@ -26,7 +26,7 @@ const AssetBasicInfo: React.FC<AssetBasicInfoProps> = ({ asset, baseCurrency, is
       <div style={{ flex: 1 }}>
         <strong style={{ display: 'block', fontSize: '1rem' }} title={asset.display_name ? `Official: ${asset.name}` : asset.name}>
           {asset.display_name || cleanAssetName(asset.name)}
-          {asset.type !== 'CASH' && asset.priceStatus && asset.priceStatus !== 'AUTOMATED' && (
+          {asset.priceStatus && asset.priceStatus !== 'AUTOMATED' && (
             <span style={{ 
               fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px',
               backgroundColor: asset.priceStatus === 'MANUAL' ? 'rgba(255, 193, 7, 0.1)' : 'rgba(239, 68, 68, 0.1)',
