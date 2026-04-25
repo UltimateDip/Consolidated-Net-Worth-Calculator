@@ -4,6 +4,7 @@ import currencyService from './CurrencyService';
 import BrokerParserFactory from './parsers/BrokerParserFactory';
 import logger from '../utils/logger';
 import { BadRequestError } from '../utils/errors';
+import { ASSET_TYPES, PRICE_STATUS, VERIFICATION_STATUS, HISTORY_TYPES } from '../utils/constants';
 
 interface HoldingInput {
   id?: number;
@@ -33,12 +34,12 @@ export default class PortfolioService {
   async triggerAssetEnrichment(assetId: number, ticker: string | null, type: string, currentName: string): Promise<void> {
     try {
       const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-      if (type === 'EQUITY' && ticker) {
+      if (type === ASSET_TYPES.EQUITY && ticker) {
         const profile = await this.priceService.fetchProfile(ticker as string, finnhubKey || '');
         if (profile && profile.name && profile.name !== currentName) {
           this.repo.updateSuggestedName(assetId, profile.name);
         }
-      } else if (type === 'MF') {
+      } else if (type === ASSET_TYPES.MF) {
         if (ticker && !/^\d+$/.test(ticker)) {
           const lookup = await this.priceService.findMFCodeByName(currentName);
           if (lookup && (lookup.name !== currentName || (lookup.ticker !== ticker && ticker !== null))) {
@@ -62,7 +63,7 @@ export default class PortfolioService {
     const enrichedAssets = assets.map((asset: any) => {
       let currentPrice = 0;
 
-      if (asset.type === 'CASH') {
+      if (asset.type === ASSET_TYPES.CASH) {
         currentPrice = 1;
       } else if (asset.ticker) {
         const cached = this.priceService.getPriceDetails(asset.ticker);
@@ -85,7 +86,7 @@ export default class PortfolioService {
         currentPrice: finalPrice,
         originalPrice: currentPrice,
         totalValue,
-        priceStatus: asset.type === 'CASH' ? 'MANUAL' : 'CACHED',
+        priceStatus: asset.type === ASSET_TYPES.CASH ? PRICE_STATUS.MANUAL : 'CACHED',
         manualPrice: null
       };
     });
@@ -101,10 +102,10 @@ export default class PortfolioService {
 
     // --- Phase 1: Fetch all live prices concurrently ---
     const pricePromises = assets.map((asset: any) => {
-      if (asset.type === 'CASH') {
+      if (asset.type === ASSET_TYPES.CASH) {
         return Promise.resolve(1);
       }
-      if (['EQUITY', 'MF', 'GOLD'].includes(asset.type)) {
+      if ([ASSET_TYPES.EQUITY, ASSET_TYPES.MF, ASSET_TYPES.GOLD].includes(asset.type)) {
         return this.priceService.fetchPrice(asset.ticker, asset.type, asset.currency)
           .catch(() => null);
       }
@@ -135,13 +136,13 @@ export default class PortfolioService {
       const priceFromService = livePrices[i];
       const details = this.priceService.getPriceDetails(asset.ticker);
 
-      let priceStatus = 'AUTOMATED';
-      if (asset.type === 'CASH') {
-        priceStatus = 'MANUAL';
+      let priceStatus: string = PRICE_STATUS.AUTOMATED;
+      if (asset.type === ASSET_TYPES.CASH) {
+        priceStatus = PRICE_STATUS.MANUAL;
       } else if (priceFromService === null) {
-        priceStatus = 'FAILED';
+        priceStatus = PRICE_STATUS.FAILED;
       } else if (details && details.manual_price !== null && details.manual_price !== undefined) {
-        priceStatus = 'MANUAL';
+        priceStatus = PRICE_STATUS.MANUAL;
       }
 
       const currentPrice = priceFromService || asset.avg_price || 0;
@@ -218,7 +219,7 @@ export default class PortfolioService {
 
     // Normalize ticker for CASH assets
     if (!ticker || ticker.trim() === '') {
-      if (type === 'CASH') {
+      if (type === ASSET_TYPES.CASH) {
         ticker = `CASH_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
       } else {
         ticker = null;
@@ -226,8 +227,11 @@ export default class PortfolioService {
     }
 
     // Default price for CASH
-    if (type === 'CASH' && (!price || isNaN(parseFloat(String(price))))) {
-      price = 1;
+    if (type === ASSET_TYPES.CASH) {
+      const parsedPrice = parseFloat(String(price));
+      if (!price || isNaN(parsedPrice)) {
+        price = 1;
+      }
     }
 
     let assetId = id;
@@ -248,9 +252,9 @@ export default class PortfolioService {
           const totalUnits = existingUnits + units;
 
           this.repo.updateAsset(assetId, name, ticker!, type, currency, displayName);
-          this.repo.insertHoldingHistory(assetId, totalUnits, price || null, currency, 'MERGE');
+          this.repo.insertHoldingHistory(assetId, totalUnits, price || null, currency, HISTORY_TYPES.MERGE);
           this.repo.deleteAsset(collision.id);
-          this.repo.updateVerificationStatus(assetId, 'VERIFIED');
+          this.repo.updateVerificationStatus(assetId, VERIFICATION_STATUS.VERIFIED);
           this.repo.syncManualPrice(ticker, manualPrice, type);
           return;
         }
@@ -268,21 +272,23 @@ export default class PortfolioService {
         }
       }
 
-      this.repo.insertHoldingHistory(assetId!, units, price || null, currency, 'UPDATE');
+      this.repo.insertHoldingHistory(assetId!, units, price || null, currency, HISTORY_TYPES.UPDATE);
       this.repo.syncManualPrice(ticker, manualPrice, type);
 
       // Mark as VERIFIED since this was a manual user action
-      this.repo.updateVerificationStatus(assetId!, 'VERIFIED');
+      this.repo.updateVerificationStatus(assetId!, VERIFICATION_STATUS.VERIFIED);
 
       // Auto-verify if ticker is a valid numeric code for MF
-      if (type === 'MF' && ticker && /^\d+$/.test(ticker)) {
-        this.repo.updateVerificationStatus(assetId!, 'VERIFIED');
-        this.repo.clearSuggestedTicker(assetId!);
+      if (type === ASSET_TYPES.MF) {
+        if (ticker && /^\d+$/.test(ticker)) {
+          this.repo.updateVerificationStatus(assetId!, VERIFICATION_STATUS.VERIFIED);
+          this.repo.clearSuggestedTicker(assetId!);
+        }
       }
     });
 
     // Fire-and-forget enrichment AFTER the transaction completes
-    if (assetId && (type === 'EQUITY' || type === 'MF')) {
+    if (assetId && (type === ASSET_TYPES.EQUITY || type === ASSET_TYPES.MF)) {
       this.triggerAssetEnrichment(assetId, ticker, type, name).catch((err: any) =>
         logger.error(`[Background Task] Enrichment failed for ${ticker}: ${err.message}`)
       );
@@ -312,15 +318,15 @@ export default class PortfolioService {
           asset = { id: newId };
         }
 
-        this.repo.insertHoldingHistory(asset.id, item.units, item.price, item.currency || 'INR', 'UPDATE');
+        this.repo.insertHoldingHistory(asset.id, item.units, item.price, item.currency || 'INR', HISTORY_TYPES.UPDATE);
 
         // Update global price cache — skip for CASH and null tickers
-        if (item.type !== 'CASH' && item.price && item.ticker) {
+        if (item.type !== ASSET_TYPES.CASH && item.price && item.ticker) {
           this.repo.syncPriceCache(item.ticker, item.price);
         }
 
         // Fire enrichment
-        if (item.type === 'EQUITY' || item.type === 'MF') {
+        if (item.type === ASSET_TYPES.EQUITY || item.type === ASSET_TYPES.MF) {
           this.triggerAssetEnrichment(asset.id, item.ticker, item.type, item.name).catch((err: any) =>
             logger.error(`[Background Task] Enrichment failed for ${item.ticker}: ${err.message}`)
           );
@@ -337,7 +343,7 @@ export default class PortfolioService {
     if (!query || query.length < 2) return [];
     // Note: PortfolioService doesn't have finnhubKey directly, we could fetch it from repo
     const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-    const results = await this.priceService.searchSymbols(query, type || 'EQUITY', finnhubKey);
+    const results = await this.priceService.searchSymbols(query, type || ASSET_TYPES.EQUITY, finnhubKey);
     return Array.isArray(results) ? results : [];
   }
 
@@ -379,16 +385,16 @@ export default class PortfolioService {
 
     for (const asset of assets) {
       try {
-        if (asset.type === 'EQUITY' && asset.ticker) {
+        if (asset.type === ASSET_TYPES.EQUITY && asset.ticker) {
           const profile = await this.priceService.fetchProfile(asset.ticker as string, finnhubKey || '');
           if (profile && profile.name && profile.name !== asset.name) {
             this.repo.updateSuggestedName(asset.id, profile.name);
             count++;
           }
-        } else if (asset.type === 'MF') {
+        } else if (asset.type === ASSET_TYPES.MF) {
           // If it's an unverified slug, check if we can find ANY match to nudge the user
           if (asset.verification_status === 'UNVERIFIED' && (!asset.ticker || !/^\d+$/.test(asset.ticker))) {
-            const results = await this.priceService.searchSymbols(asset.name, 'MF', finnhubKey);
+            const results = await this.priceService.searchSymbols(asset.name, ASSET_TYPES.MF, finnhubKey);
             if (results && results.length > 0) {
               this.repo.updateVerificationStatus(asset.id, 'NEEDS_REVIEW');
               count++;

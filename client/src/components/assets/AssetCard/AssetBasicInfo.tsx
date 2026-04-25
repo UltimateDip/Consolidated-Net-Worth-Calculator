@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Asset } from '../../../types';
 import { formatCurrency, TYPE_COLORS, cleanAssetName } from '../../../utils/formatters';
+import { ASSET_TYPES, PRICE_STATUS } from '../../../utils/constants';
 
 interface AssetBasicInfoProps {
   asset: Asset;
@@ -17,7 +18,7 @@ const AssetBasicInfo: React.FC<AssetBasicInfoProps> = ({ asset, baseCurrency, is
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '14px 16px', backgroundColor: 'rgba(0,0,0,0.2)',
         borderRadius: 'var(--radius-sm)',
-        borderLeft: `4px solid ${TYPE_COLORS[asset.type] || TYPE_COLORS.OTHER}`,
+        borderLeft: `4px solid ${TYPE_COLORS[asset.type] || TYPE_COLORS[ASSET_TYPES.OTHER]}`,
         transition: 'background-color 0.2s ease',
       }}
       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'}
@@ -26,24 +27,24 @@ const AssetBasicInfo: React.FC<AssetBasicInfoProps> = ({ asset, baseCurrency, is
       <div style={{ flex: 1 }}>
         <strong style={{ display: 'block', fontSize: '1rem' }} title={asset.display_name ? `Official: ${asset.name}` : asset.name}>
           {asset.display_name || cleanAssetName(asset.name)}
-          {asset.priceStatus && asset.priceStatus !== 'AUTOMATED' && (
+          {asset.priceStatus && asset.priceStatus !== PRICE_STATUS.AUTOMATED && (
             <span style={{ 
               fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px',
-              backgroundColor: asset.priceStatus === 'MANUAL' ? 'rgba(255, 193, 7, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-              color: asset.priceStatus === 'MANUAL' ? 'var(--accent-warning)' : 'var(--accent-danger)',
-              border: `1px solid ${asset.priceStatus === 'MANUAL' ? 'rgba(255, 193, 7, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+              backgroundColor: asset.priceStatus === PRICE_STATUS.MANUAL ? 'rgba(255, 193, 7, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              color: asset.priceStatus === PRICE_STATUS.MANUAL ? 'var(--accent-warning)' : 'var(--accent-danger)',
+              border: `1px solid ${asset.priceStatus === PRICE_STATUS.MANUAL ? 'rgba(255, 193, 7, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
               textTransform: 'uppercase', verticalAlign: 'middle', fontWeight: '600'
             }}>
-              {asset.priceStatus === 'MANUAL' ? 'Manual' : asset.priceStatus}
+              {asset.priceStatus === PRICE_STATUS.MANUAL ? 'Manual' : asset.priceStatus}
             </span>
           )}
         </strong>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          {asset.type === 'CASH' && <>{asset.currency || baseCurrency} Balance</>}
-          {asset.type === 'EQUITY' && <>{parseFloat(asset.current_units.toString()).toFixed(2)} Shares • {asset.ticker || 'Unverified'} • {asset.currency || baseCurrency}</>}
-          {asset.type === 'MF' && <>{parseFloat(asset.current_units.toString()).toFixed(2)} Units • {asset.currency || baseCurrency}</>}
-          {asset.type === 'GOLD' && <>{parseFloat(asset.current_units.toString()).toFixed(2)} Grams • {asset.currency || baseCurrency}</>}
-          {!['CASH', 'EQUITY', 'MF', 'GOLD'].includes(asset.type) && <>{parseFloat(asset.current_units.toString()).toFixed(2)} Units • {asset.currency || baseCurrency}</>}
+          {asset.type === ASSET_TYPES.CASH && <>{asset.currency || baseCurrency} Balance</>}
+          {asset.type === ASSET_TYPES.EQUITY && <>{parseFloat(asset.current_units.toString()).toFixed(2)} Shares • {asset.ticker || 'Unverified'} • {asset.currency || baseCurrency}</>}
+          {asset.type === ASSET_TYPES.MF && <>{parseFloat(asset.current_units.toString()).toFixed(2)} Units • {asset.currency || baseCurrency}</>}
+          {asset.type === ASSET_TYPES.GOLD && <>{parseFloat(asset.current_units.toString()).toFixed(2)} Grams • {asset.currency || baseCurrency}</>}
+          {!([ASSET_TYPES.CASH, ASSET_TYPES.EQUITY, ASSET_TYPES.MF, ASSET_TYPES.GOLD] as string[]).includes(asset.type) && <>{parseFloat(asset.current_units.toString()).toFixed(2)} Units • {asset.currency || baseCurrency}</>}
         </span>
       </div>
 
@@ -51,11 +52,11 @@ const AssetBasicInfo: React.FC<AssetBasicInfoProps> = ({ asset, baseCurrency, is
         <strong style={{ fontSize: '1.1rem', display: 'block' }}>
           {formatCurrency(asset.totalValue, baseCurrency)}
         </strong>
-        {asset.type !== 'CASH' && (
+        {asset.type !== ASSET_TYPES.CASH && (
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {asset.type === 'MF' ? 'NAV ' : ''}
+            {asset.type === ASSET_TYPES.MF ? 'NAV ' : ''}
             {formatCurrency(asset.originalPrice || asset.avg_price, asset.currency || baseCurrency)}
-            {asset.type === 'EQUITY' ? '/share' : asset.type === 'MF' ? '' : asset.type === 'GOLD' ? '/gram' : '/unit'}
+            {asset.type === ASSET_TYPES.EQUITY ? '/share' : asset.type === ASSET_TYPES.MF ? '' : asset.type === ASSET_TYPES.GOLD ? '/gram' : '/unit'}
           </span>
         )}
       </div>

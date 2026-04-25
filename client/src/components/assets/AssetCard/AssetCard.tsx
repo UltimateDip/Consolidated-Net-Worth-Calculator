@@ -4,6 +4,7 @@ import AssetBasicInfo from './AssetBasicInfo';
 import PriceWarningNudge from './nudges/PriceWarningNudge';
 import MFVerificationNudge from './nudges/MFVerificationNudge';
 import SuggestionBanner from './nudges/SuggestionBanner';
+import { ASSET_TYPES, PRICE_STATUS, VERIFICATION_STATUS } from '../../../utils/constants';
 
 interface AssetCardProps {
   asset: Asset;
@@ -18,9 +19,9 @@ interface AssetCardProps {
 const AssetCard: React.FC<AssetCardProps> = ({
   asset, baseCurrency, isEditMode, processingId, onEdit, onApplySuggestion, onIgnoreSuggestion
 }) => {
-  const showPriceWarning = !isEditMode && asset.priceStatus === 'FAILED' && asset.type !== 'CASH';
-  const showMFNudge = asset.type === 'MF' && (asset.verification_status !== 'VERIFIED' || !asset.ticker || asset.ticker.startsWith('MF_'));
-  const showSuggestion = !isEditMode && asset.type === 'EQUITY' && ((asset.suggested_name && asset.suggested_name !== asset.name) || (asset.suggested_ticker && asset.suggested_ticker !== asset.ticker)) && processingId !== asset.id;
+  const showPriceWarning = !isEditMode && asset.priceStatus === PRICE_STATUS.FAILED && asset.type !== ASSET_TYPES.CASH;
+  const showMFNudge = asset.type === ASSET_TYPES.MF && (asset.verification_status !== VERIFICATION_STATUS.VERIFIED || !asset.ticker || asset.ticker.startsWith('MF_'));
+  const showSuggestion = !isEditMode && asset.type === ASSET_TYPES.EQUITY && ((asset.suggested_name && asset.suggested_name !== asset.name) || (asset.suggested_ticker && asset.suggested_ticker !== asset.ticker)) && processingId !== asset.id;
 
   return (
     <div>

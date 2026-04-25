@@ -1,5 +1,6 @@
 import axios from 'axios';
 import logger from '../utils/logger';
+import { ASSET_TYPES } from '../utils/constants';
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const FETCH_TIMEOUT_MS = 5000; // 5 seconds maximum wait time
@@ -65,7 +66,7 @@ export class PriceService {
   }
 
   async fetchPrice(ticker: string | null, type: string, currency: string = 'INR'): Promise<number | null> {
-    if (type === 'CASH') return 1;
+    if (type === ASSET_TYPES.CASH) return 1;
     if (!ticker) return null;
 
     const cached = this.globalDb.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker) as any;
@@ -76,12 +77,12 @@ export class PriceService {
     }
 
     let adapter;
-    if (type === 'EQUITY') {
+    if (type === ASSET_TYPES.EQUITY) {
       adapter = new YahooFinanceAdapter();
-    } else if (type === 'GOLD') {
+    } else if (type === ASSET_TYPES.GOLD) {
       adapter = new YahooFinanceAdapter();
       ticker = ticker.includes('.') ? ticker : (ticker.startsWith('SGB') ? `${ticker}.NS` : ticker);
-    } else if (type === 'MF') {
+    } else if (type === ASSET_TYPES.MF) {
       adapter = new MFAdapter();
     } else {
       return cached ? (cached.manual_price || cached.price) : null;
@@ -142,7 +143,7 @@ export class PriceService {
   }
 
   async searchSymbols(query: string, type: string, finnhubKey: string | null): Promise<any[]> {
-    if (type === 'MF') return await new MFAdapter().search(query);
+    if (type === ASSET_TYPES.MF) return await new MFAdapter().search(query);
     
     if (!finnhubKey) return [];
     
@@ -150,7 +151,7 @@ export class PriceService {
     try {
       const res = await axios.get(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${finnhubKey}`, { timeout: FETCH_TIMEOUT_MS });
       if (res.data && res.data.result) {
-        results = res.data.result.map((r: any) => ({ symbol: r.symbol, description: r.description, type: 'EQUITY' }));
+        results = res.data.result.map((r: any) => ({ symbol: r.symbol, description: r.description, type: ASSET_TYPES.EQUITY }));
       }
     } catch (e: any) {
       logger.error(`[PriceService] Finnhub search failed: ${e.message}`);
