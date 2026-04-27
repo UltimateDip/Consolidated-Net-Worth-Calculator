@@ -32,6 +32,48 @@ class YahooFinanceAdapter {
     }
     throw new Error('Retries exhausted');
   }
+
+  async getProfile(ticker: string): Promise<{ name: string } | null> {
+    try {
+      const res = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`, {
+        timeout: FETCH_TIMEOUT_MS,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      const meta = res.data?.chart?.result?.[0]?.meta;
+      if (meta && (meta.longName || meta.shortName)) {
+        return { name: meta.longName || meta.shortName };
+      }
+      return null;
+    } catch (e: any) {
+      logger.debug(`[PriceService] Yahoo profile fetch failed for ${ticker}: ${e.message}`);
+      return null;
+    }
+  }
+
+  async search(query: string): Promise<any[]> {
+    try {
+      const res = await axios.get(`https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}`, {
+        timeout: FETCH_TIMEOUT_MS,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      
+      const quotes = res.data?.quotes || [];
+      return quotes
+        .filter((q: any) => q.quoteType === 'EQUITY' || q.quoteType === 'ETF')
+        .map((q: any) => ({
+          symbol: q.symbol,
+          description: q.longname || q.shortname || q.symbol,
+          type: 'EQUITY'
+        }));
+    } catch (e: any) {
+      logger.error(`[PriceService] Yahoo search failed for ${query}: ${e.message}`);
+      return [];
+    }
+  }
 }
 
 class MFAdapter {
@@ -106,34 +148,15 @@ export class PriceService {
     return this.globalDb.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker) as any;
   }
 
-  async fetchProfile(ticker: string, finnhubKey: string | null): Promise<any | null> {
-    if (!ticker || !finnhubKey) return null;
-
-    try {
-      const res = await axios.get(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${finnhubKey}`, { timeout: FETCH_TIMEOUT_MS });
-      if (res.data && res.data.name) return res.data;
-      
-      if (!res.data || !res.data.name) {
-        const searchRes = await axios.get(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(ticker)}&token=${finnhubKey}`, { timeout: FETCH_TIMEOUT_MS });
-        const match = (searchRes.data.result || []).find((r: any) => r.symbol === ticker || r.displaySymbol === ticker);
-        if (match && match.description) return { name: match.description };
-      }
-      return null;
-    } catch (err: any) {
-      logger.error(`[PriceService] Finnhub profile fetch failed for ${ticker}: ${err.message}`);
-      return null;
-    }
+  async fetchProfile(ticker: string): Promise<any | null> {
+    if (!ticker) return null;
+    return await new YahooFinanceAdapter().getProfile(ticker);
   }
 
   async findMFCodeByName(name: string): Promise<any | null> {
-    try {
-      const mfAdapter = new MFAdapter();
-      const results = await mfAdapter.search(name);
-      if (results && results.length > 0) {
-        return { ticker: results[0].symbol, name: results[0].description };
-      }
-    } catch (err: any) {
-      logger.error(`[PriceService] MF lookup failed for ${name}: ${err.message}`);
+    const results = await new MFAdapter().search(name);
+    if (results && results.length > 0) {
+      return { ticker: results[0].symbol, name: results[0].description };
     }
     return null;
   }
@@ -142,27 +165,10 @@ export class PriceService {
     return await new MFAdapter().search(query);
   }
 
-  async searchSymbols(query: string, type: string, finnhubKey: string | null): Promise<any[]> {
-    if (type === ASSET_TYPES.MF) return await new MFAdapter().search(query);
-    
-    if (!finnhubKey) return [];
-    
-    let results: any[] = [];
-    try {
-      const res = await axios.get(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${finnhubKey}`, { timeout: FETCH_TIMEOUT_MS });
-      if (res.data && res.data.result) {
-        results = res.data.result.map((r: any) => ({ symbol: r.symbol, description: r.description, type: ASSET_TYPES.EQUITY }));
-      }
-    } catch (e: any) {
-      logger.error(`[PriceService] Finnhub search failed: ${e.message}`);
+  async searchSymbols(query: string, type: string): Promise<any[]> {
+    if (type === ASSET_TYPES.MF) {
+      return await new MFAdapter().search(query);
     }
-    
-    if (results.length < 5) {
-      try {
-         const mfResults = await new MFAdapter().search(query);
-         results = [...results, ...mfResults];
-      } catch(e) {}
-    }
-    return results;
+    return await new YahooFinanceAdapter().search(query);
   }
 }
