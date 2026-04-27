@@ -142,13 +142,19 @@ export class PriceService {
 
   async fetchProfile(ticker: string): Promise<any | null> {
     if (!ticker) return null;
+
+    // 1. Check if we already have it in the database
     const cached = this.globalDb.prepare('SELECT name FROM price_cache WHERE ticker = ?').get(ticker);
     if (cached && cached.name) return { name: cached.name };
-    
-    // Fallback: If not in cache, fetch it (this will also update cache)
+
+    // 2. Fallback: Force a main price fetch. 
+    // This automatically calls the adapter AND executes the SQLite cache update.
     try {
-      const result = await new YahooFinanceAdapter().getPrice(ticker);
-      return result ? { name: result.name } : null;
+      await this.fetchPrice(ticker, ASSET_TYPES.EQUITY);
+
+      // 3. Now read the freshly cached name from the database
+      const updatedCache = this.globalDb.prepare('SELECT name FROM price_cache WHERE ticker = ?').get(ticker);
+      return updatedCache && updatedCache.name ? { name: updatedCache.name } : null;
     } catch (e) {
       return null;
     }
