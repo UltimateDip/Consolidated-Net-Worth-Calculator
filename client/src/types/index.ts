@@ -7,7 +7,7 @@ export interface Asset {
   id: number;
   name: string;
   ticker: string | null;
-  type: 'EQUITY' | 'MF' | 'CASH' | 'GOLD' | string;
+  type: 'EQUITY' | 'MF' | 'CASH' | 'GOLD';
   current_units: number;
   currency: string;
   avg_price: number;

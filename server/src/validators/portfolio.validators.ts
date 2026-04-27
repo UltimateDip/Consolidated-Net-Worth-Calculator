@@ -8,7 +8,7 @@ export const addHoldingSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required'),
     ticker: z.string().nullable().optional(),
-    type: z.enum(['EQUITY', 'MF', 'GOLD', 'CASH', 'CRYPTO']),
+    type: z.enum(['EQUITY', 'MF', 'GOLD', 'CASH']),
     units: z.number().nonnegative('Units cannot be negative'),
     price: z.number().nonnegative('Price cannot be negative').optional(),
     currency: z.string().length(3, 'Currency must be a 3-letter code').default('INR')

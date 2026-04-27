@@ -3,7 +3,6 @@ export const ASSET_TYPES = {
   EQUITY: 'EQUITY',
   MF: 'MF',
   GOLD: 'GOLD',
-  OTHER: 'OTHER'
 } as const;
 
 export type AssetType = keyof typeof ASSET_TYPES;
