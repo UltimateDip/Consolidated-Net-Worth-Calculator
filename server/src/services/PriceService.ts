@@ -59,6 +59,39 @@ class YahooFinanceAdapter {
       return [];
     }
   }
+
+  async getDividends(ticker: string): Promise<{ yield: number | null, rate: number | null } | null> {
+    try {
+      // v10 quoteSummary is restricted (401), so we use v8/chart with events=div
+      // This returns the dividend history for the specified range.
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1y&events=div`;
+      const res = await axios.get(url, {
+        timeout: FETCH_TIMEOUT_MS,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      
+      const result = res.data?.chart?.result?.[0];
+      const dividends = result?.events?.dividends;
+      const currentPrice = result?.meta?.regularMarketPrice;
+
+      if (dividends && currentPrice) {
+        // Sum all dividends in the last 1 year
+        const totalRate = Object.values(dividends).reduce((acc: number, div: any) => acc + (div.amount || 0), 0);
+        return {
+          yield: totalRate / currentPrice,
+          rate: totalRate
+        };
+      }
+      
+      // If no dividends found in last year, return zero instead of null to stop re-fetching
+      return { yield: 0, rate: 0 };
+    } catch (e: any) {
+      logger.debug(`[PriceService] Yahoo dividend fetch failed for ${ticker}: ${e.message}`);
+      return null;
+    }
+  }
 }
 
 class MFAdapter {
@@ -99,11 +132,15 @@ export class PriceService {
     if (type === ASSET_TYPES.CASH) return 1;
     if (!ticker) return null;
 
-    const cached = this.globalDb.prepare('SELECT price, name, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker) as any;
+    const cached = this.globalDb.prepare('SELECT price, name, dividend_yield, dividend_rate, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker) as any;
     
     if (cached) {
       const isFresh = (new Date().getTime() - new Date(cached.timestamp).getTime()) < CACHE_TTL_MS;
-      if (isFresh && !cached.manual_price) return cached.price;
+      // If price is fresh AND (manual price exists OR it's not equity OR dividend data already exists), return cached price
+      const hasDividends = cached.dividend_yield !== null;
+      if (isFresh && !cached.manual_price && (type !== ASSET_TYPES.EQUITY || hasDividends)) {
+        return cached.price;
+      }
     }
 
     let adapter;
@@ -123,12 +160,32 @@ export class PriceService {
       if (!result) throw new Error('No data received from adapter');
 
       const { price, name } = result;
+      let dividendYield = cached?.dividend_yield || null;
+      let dividendRate = cached?.dividend_rate || null;
+
+      // Enrich with dividends if Equity/Gold and (cache is stale or missing)
+      if (adapter instanceof YahooFinanceAdapter && type === ASSET_TYPES.EQUITY) {
+        const isStale = !cached || (new Date().getTime() - new Date(cached.timestamp).getTime()) > 24 * 60 * 60 * 1000;
+        if (isStale || dividendYield === null) {
+          const div = await (adapter as YahooFinanceAdapter).getDividends(ticker);
+          if (div) {
+            dividendYield = div.yield;
+            dividendRate = div.rate;
+          }
+        }
+      }
 
       this.globalDb.prepare(`
-        INSERT INTO price_cache (ticker, price, name, timestamp, manual_price) 
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP, NULL)
-        ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, name=COALESCE(excluded.name, price_cache.name), timestamp=CURRENT_TIMESTAMP, manual_price=NULL
-      `).run(ticker, price, name);
+        INSERT INTO price_cache (ticker, price, name, dividend_yield, dividend_rate, timestamp, manual_price) 
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
+        ON CONFLICT(ticker) DO UPDATE SET 
+          price=excluded.price, 
+          name=COALESCE(excluded.name, price_cache.name),
+          dividend_yield=COALESCE(excluded.dividend_yield, price_cache.dividend_yield),
+          dividend_rate=COALESCE(excluded.dividend_rate, price_cache.dividend_rate),
+          timestamp=CURRENT_TIMESTAMP, 
+          manual_price=NULL
+      `).run(ticker, price, name, dividendYield, dividendRate);
       return price;
     } catch (err: any) {
       logger.error(`[PriceService] Fetch failed for ${ticker}: ${err.message}`);
@@ -137,7 +194,7 @@ export class PriceService {
   }
 
   getPriceDetails(ticker: string) {
-    return this.globalDb.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker) as any;
+    return this.globalDb.prepare('SELECT price, dividend_yield, dividend_rate, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker) as any;
   }
 
   async fetchProfile(ticker: string): Promise<any | null> {

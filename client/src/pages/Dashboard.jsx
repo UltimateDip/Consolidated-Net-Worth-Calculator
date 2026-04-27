@@ -16,6 +16,7 @@ const Dashboard = () => {
     assets, 
     isLoading, 
     portfolioHistory,
+    totalAnnualDividend,
     autoRefresh,
     setAutoRefresh,
     fetchPortfolioSilent
@@ -96,6 +97,7 @@ const Dashboard = () => {
         largest={largest} 
         largestPct={largestPct} 
         topClass={topClass} 
+        totalAnnualDividend={totalAnnualDividend}
         autoRefresh={autoRefresh}
         setAutoRefresh={setAutoRefresh}
       />

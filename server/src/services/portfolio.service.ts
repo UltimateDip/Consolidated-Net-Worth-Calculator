@@ -59,6 +59,7 @@ export default class PortfolioService {
 
     // Use cached prices from price_cache and last known FX rates
     let totalNetWorth = 0;
+    let totalAnnualDividend = 0;
     const enrichedAssets = assets.map((asset: any) => {
       let currentPrice = 0;
 
@@ -67,6 +68,8 @@ export default class PortfolioService {
       } else if (asset.ticker) {
         const cached = this.priceService.getPriceDetails(asset.ticker);
         currentPrice = (cached && cached.price) || asset.avg_price || 0;
+        asset.dividendYield = cached?.dividend_yield || null;
+        asset.dividendRate = cached?.dividend_rate || null;
       }
 
       let finalPrice = currentPrice;
@@ -80,6 +83,16 @@ export default class PortfolioService {
       const totalValue = finalPrice * (asset.current_units || 0);
       totalNetWorth += totalValue;
 
+      if (asset.dividendRate) {
+        let finalDivRate = asset.dividendRate;
+        const assetCurrency = asset.currency || 'INR';
+        if (assetCurrency !== baseCurrency) {
+          const fxRate = currencyService.getCachedRate(assetCurrency, baseCurrency);
+          finalDivRate = asset.dividendRate * fxRate;
+        }
+        totalAnnualDividend += finalDivRate * (asset.current_units || 0);
+      }
+
       return {
         ...asset,
         currentPrice: finalPrice,
@@ -90,7 +103,13 @@ export default class PortfolioService {
       };
     });
 
-    return { baseCurrency, totalNetWorth, assets: enrichedAssets, isCached: true };
+    return { 
+      baseCurrency, 
+      totalNetWorth, 
+      totalAnnualDividend,
+      assets: enrichedAssets, 
+      isCached: true 
+    };
   }
 
   // ─── Portfolio Summary ──────────────────────────────────────
@@ -131,6 +150,7 @@ export default class PortfolioService {
 
     // --- Phase 3: Assemble enriched portfolio ---
     let totalNetWorth = 0;
+    let totalAnnualDividend = 0;
     const enrichedAssets = assets.map((asset: any, i: number) => {
       const priceFromService = livePrices[i];
       const details = this.priceService.getPriceDetails(asset.ticker);
@@ -155,12 +175,25 @@ export default class PortfolioService {
       const totalValue = finalPrice * (asset.current_units || 0);
       totalNetWorth += totalValue;
 
+      let dividendYield = details?.dividend_yield || null;
+      let dividendRate = details?.dividend_rate || null;
+
+      if (dividendRate) {
+        let finalDivRate = dividendRate;
+        if (assetCurrency !== baseCurrency) {
+          finalDivRate = dividendRate * (fxRateMap[assetCurrency] || 1);
+        }
+        totalAnnualDividend += finalDivRate * (asset.current_units || 0);
+      }
+
       return {
         ...asset,
         currentPrice: finalPrice,
         originalPrice: currentPrice,
         totalValue,
         priceStatus,
+        dividendYield,
+        dividendRate,
         manualPrice: details ? details.manual_price : null
       };
     });
@@ -169,7 +202,7 @@ export default class PortfolioService {
     const today = new Date().toISOString().split('T')[0];
     this.repo.saveSnapshot(today, totalNetWorth, baseCurrency);
 
-    return { baseCurrency, totalNetWorth, assets: enrichedAssets };
+    return { baseCurrency, totalNetWorth, totalAnnualDividend, assets: enrichedAssets };
   }
 
   // ─── History ────────────────────────────────────────────────
