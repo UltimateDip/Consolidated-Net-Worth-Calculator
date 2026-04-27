@@ -10,7 +10,7 @@ Stop juggling multiple spreadsheets and broker apps. Let AssetAura orchestrate t
 Your net worth is your business. **AssetAura is fundamentally a local-first application.**
 
 - **Zero Tracking**: Your financial data, asset holdings, and net worth history are stored entirely on your local machine inside an offline SQLite database (`/data/portfolio.db`). **No financial data ever leaves your computer.**
-- **Why do we use the internet?** The app only makes outbound HTTP requests to fetch public market data—specifically querying public tickers against Yahoo Finance, Finnhub, and mfapi.in to get the latest unit prices and currency exchange rates.
+- **Why do we use the internet?** The app only makes outbound HTTP requests to fetch public market data—specifically querying public tickers against Yahoo Finance and mfapi.in to get the latest unit prices, company names, and currency exchange rates.
 - **Works 100% Offline**: If you disconnect from the internet or APIs go down, the app remains fully functional. You can rely entirely on the most recently cached prices, or manually override the prices yourself via the edit panel to keep your dashboard perfectly accurate without ever going online.
 
 ## ✨ What Makes AssetAura Special?
@@ -23,7 +23,7 @@ AssetAura is built to combine high aesthetics with resilient engineering. Here a
 
 ### 2. ⚡ Hybrid & Resilient Price Tracking
 The market isn't always reliable, but your net worth chart should be. AssetAura includes a multi-layered pricing engine:
-- **Live Market Data**: Integrates seamlessly with **Yahoo Finance**, **Finnhub.io**, and **mfapi.in** for real-time asset pricing.
+- **Live Market Data**: Integrates seamlessly with **Yahoo Finance** and **mfapi.in** for real-time asset pricing and name enrichment.
 - **Smart Caching**: Employs a 24-hour cache layer to prevent unnecessary rate limiting and ensure snappy dashboard loads, even on weekends when markets are closed.
 - **The "Safety Net" Fallback Hierarchy**: If a live API fails or goes offline, AssetAura elegantly falls back to: 
     1. Your last manually overriden price.
@@ -76,13 +76,8 @@ The backend manages the SQLite database, fetches live prices, and handles data c
 cd server
 npm install
 
-# Start the server (runs on Port 3000)
+# Start the server (runs on Port 3001)
 npm run dev
-```
-
-*Optional but Recommended*: For US Equities, get a free API key from [Finnhub.io](https://finnhub.io/) and create a `.env` file inside the `/server` folder:
-```
-FINNHUB_KEY=your_api_key_here
 ```
 
 #### 3. Start the Frontend Application (UI)

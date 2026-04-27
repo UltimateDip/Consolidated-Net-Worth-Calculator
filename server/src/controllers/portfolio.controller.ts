@@ -101,17 +101,17 @@ export default class PortfolioController {
     res.json({ price });
   });
 
-  // POST /api/portfolio/apply-suggestion
+  // POST /api/assets/:id/apply-suggestion
   applySuggestion = asyncHandler(async (req: Request, res: Response) => {
-    const { assetId } = req.body;
+    const assetId = parseInt(req.params.id as string);
     const service = this.getService(req);
     const asset = service.applySuggestion(assetId);
     res.json({ message: 'Suggestion applied', asset });
   });
 
-  // POST /api/portfolio/reject-suggestion
+  // POST /api/assets/:id/ignore-suggestion
   ignoreSuggestion = asyncHandler(async (req: Request, res: Response) => {
-    const { assetId } = req.body;
+    const assetId = parseInt(req.params.id as string);
     const service = this.getService(req);
     service.rejectSuggestion(assetId);
     res.json({ message: 'Suggestion rejected' });

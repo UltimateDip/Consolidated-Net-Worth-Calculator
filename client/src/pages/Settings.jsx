@@ -135,37 +135,6 @@ const Settings = () => {
         </div>
       </form>
 
-      <hr style={{ borderColor: 'var(--border-color)', margin: '30px 0' }} />
-      <h3>API Integrations</h3>
-      <p style={{ fontSize: '0.9rem', marginBottom: '20px' }}>Optional API keys to enhance your experience.</p>
-
-      <div style={{ marginBottom: '20px' }}>
-        <label>
-          Finnhub API Key (Symbol Search & Enrichment)
-          <Tooltip>
-            1. Go to <a href="https://finnhub.io/" target="_blank" rel="noreferrer" style={{color: 'var(--accent-primary)'}}>Finnhub.io</a> and sign up.<br/>
-            2. The free tier offers 60 requests/minute, perfect for this app.<br/>
-            3. Copy the "API Key" from your dashboard.<br/><br/>
-            <strong>Used for:</strong> Searching stock symbols by name and fetching full company names. Not used for price fetching.
-          </Tooltip>
-        </label>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input 
-            type="password"
-            name="FINNHUB_KEY" 
-            placeholder="Enter key..."
-            value={localSettings['FINNHUB_KEY'] || ''} 
-            onChange={handleChange}
-          />
-          <button className="btn-secondary" onClick={() => handleSave('FINNHUB_KEY')}>Save</button>
-        </div>
-      </div>
-
-      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '20px' }}>
-        All live prices are fetched via Yahoo Finance (no key required). Indian Mutual Funds use public AMFI data. The Finnhub key is optional but recommended for better stock search and automatic name suggestions.
-      </p>
-
-      <hr style={{ borderColor: 'var(--border-color)', margin: '30px 0' }} />
       <h3>Maintenance & Tools</h3>
       <div style={{ marginTop: '20px' }}>
         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>

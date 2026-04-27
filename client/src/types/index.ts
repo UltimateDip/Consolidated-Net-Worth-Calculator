@@ -29,7 +29,6 @@ export interface PortfolioHistory {
 
 export interface Settings {
   BASE_CURRENCY?: string;
-  FINNHUB_KEY?: string;
   [key: string]: any;
 }
 

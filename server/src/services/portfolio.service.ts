@@ -33,9 +33,8 @@ export default class PortfolioService {
 
   async triggerAssetEnrichment(assetId: number, ticker: string | null, type: string, currentName: string): Promise<void> {
     try {
-      const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
       if (type === ASSET_TYPES.EQUITY && ticker) {
-        const profile = await this.priceService.fetchProfile(ticker as string, finnhubKey || '');
+        const profile = await this.priceService.fetchProfile(ticker as string);
         if (profile && profile.name && profile.name !== currentName) {
           this.repo.updateSuggestedName(assetId, profile.name);
         }
@@ -341,9 +340,7 @@ export default class PortfolioService {
 
   async searchSymbols(query: string, type?: string): Promise<any[]> {
     if (!query || query.length < 2) return [];
-    // Note: PortfolioService doesn't have finnhubKey directly, we could fetch it from repo
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
-    const results = await this.priceService.searchSymbols(query, type || ASSET_TYPES.EQUITY, finnhubKey);
+    const results = await this.priceService.searchSymbols(query, type || ASSET_TYPES.EQUITY);
     return Array.isArray(results) ? results : [];
   }
 
@@ -381,12 +378,11 @@ export default class PortfolioService {
   async performBulkEnrichment(): Promise<number> {
     const assets = this.repo.getEnrichableAssets();
     let count = 0;
-    const finnhubKey = this.repo.getSetting('FINNHUB_KEY');
 
     for (const asset of assets) {
       try {
         if (asset.type === ASSET_TYPES.EQUITY && asset.ticker) {
-          const profile = await this.priceService.fetchProfile(asset.ticker as string, finnhubKey || '');
+          const profile = await this.priceService.fetchProfile(asset.ticker as string);
           if (profile && profile.name && profile.name !== asset.name) {
             this.repo.updateSuggestedName(asset.id, profile.name);
             count++;
@@ -394,7 +390,7 @@ export default class PortfolioService {
         } else if (asset.type === ASSET_TYPES.MF) {
           // If it's an unverified slug, check if we can find ANY match to nudge the user
           if (asset.verification_status === 'UNVERIFIED' && (!asset.ticker || !/^\d+$/.test(asset.ticker))) {
-            const results = await this.priceService.searchSymbols(asset.name, ASSET_TYPES.MF, finnhubKey);
+            const results = await this.priceService.searchSymbols(asset.name, ASSET_TYPES.MF);
             if (results && results.length > 0) {
               this.repo.updateVerificationStatus(asset.id, 'NEEDS_REVIEW');
               count++;

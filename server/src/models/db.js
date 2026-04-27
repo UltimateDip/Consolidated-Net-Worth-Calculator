@@ -27,6 +27,7 @@ function getGlobalDb() {
     CREATE TABLE IF NOT EXISTS price_cache (
       ticker TEXT PRIMARY KEY,
       price REAL,
+      name TEXT,
       manual_price REAL,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -43,6 +44,13 @@ function getGlobalDb() {
     );
   `);
   
+  // Migrations: Add name column to price_cache if it doesn't exist
+  try {
+    db.prepare('ALTER TABLE price_cache ADD COLUMN name TEXT').run();
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   globalDbInstance = db;
   return globalDbInstance;
 }
