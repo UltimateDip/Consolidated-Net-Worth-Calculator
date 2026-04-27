@@ -8,7 +8,7 @@ client/dist/
 client/build/
 
 # Private User Data & Database
-# The networth.sqlite database contains all your financial data AND your API keys (Finnhub, MetalPrice)
+# The data/ directory contains your private financial holdings and portfolio databases.
 data/
 private-assets/
 
