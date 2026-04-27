@@ -8,7 +8,7 @@ const FETCH_TIMEOUT_MS = 5000; // 5 seconds maximum wait time
 // --- Adapters ---
 
 class YahooFinanceAdapter {
-  async getPrice(ticker: string): Promise<number> {
+  async getPrice(ticker: string): Promise<{ price: number, name: string | null } | null> {
     let attempts = 3;
     while (attempts > 0) {
       try {
@@ -21,7 +21,11 @@ class YahooFinanceAdapter {
         
         const result = res.data?.chart?.result?.[0];
         if (result && result.meta?.regularMarketPrice) {
-          return result.meta.regularMarketPrice;
+          const meta = result.meta;
+          return { 
+            price: meta.regularMarketPrice,
+            name: meta.longName || meta.shortName || null
+          };
         }
         throw new Error('Price not found in payload');
       } catch (e: any) {
@@ -31,25 +35,6 @@ class YahooFinanceAdapter {
       }
     }
     throw new Error('Retries exhausted');
-  }
-
-  async getProfile(ticker: string): Promise<{ name: string } | null> {
-    try {
-      const res = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`, {
-        timeout: FETCH_TIMEOUT_MS,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
-      const meta = res.data?.chart?.result?.[0]?.meta;
-      if (meta && (meta.longName || meta.shortName)) {
-        return { name: meta.longName || meta.shortName };
-      }
-      return null;
-    } catch (e: any) {
-      logger.debug(`[PriceService] Yahoo profile fetch failed for ${ticker}: ${e.message}`);
-      return null;
-    }
   }
 
   async search(query: string): Promise<any[]> {
@@ -77,15 +62,18 @@ class YahooFinanceAdapter {
 }
 
 class MFAdapter {
-  async getPrice(ticker: string): Promise<number | null> {
+  async getPrice(ticker: string): Promise<{ price: number, name: string | null } | null> {
     if (!ticker || !/^\d+$/.test(ticker)) {
       throw new Error('Unverified Mutual Fund. Needs linking to official code.');
     }
     const res = await axios.get(`https://api.mfapi.in/mf/${ticker}/latest`, { timeout: FETCH_TIMEOUT_MS });
     if (res.data && res.data.data && res.data.data.length > 0) {
-      return parseFloat(res.data.data[0].nav);
+      return {
+        price: parseFloat(res.data.data[0].nav),
+        name: null // MF API doesn't provide name in price payload
+      };
     }
-    throw new Error('Mutual Fund price not found in payload');
+    return null;
   }
 
   async search(query: string): Promise<any[]> {
@@ -111,7 +99,7 @@ export class PriceService {
     if (type === ASSET_TYPES.CASH) return 1;
     if (!ticker) return null;
 
-    const cached = this.globalDb.prepare('SELECT price, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker) as any;
+    const cached = this.globalDb.prepare('SELECT price, name, manual_price, timestamp FROM price_cache WHERE ticker = ?').get(ticker) as any;
     
     if (cached) {
       const isFresh = (new Date().getTime() - new Date(cached.timestamp).getTime()) < CACHE_TTL_MS;
@@ -131,12 +119,16 @@ export class PriceService {
     }
 
     try {
-      const price = await adapter.getPrice(ticker);
+      const result = await adapter.getPrice(ticker);
+      if (!result) throw new Error('No data received from adapter');
+
+      const { price, name } = result;
+
       this.globalDb.prepare(`
-        INSERT INTO price_cache (ticker, price, timestamp, manual_price) 
-        VALUES (?, ?, CURRENT_TIMESTAMP, NULL)
-        ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, timestamp=CURRENT_TIMESTAMP, manual_price=NULL
-      `).run(ticker, price);
+        INSERT INTO price_cache (ticker, price, name, timestamp, manual_price) 
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP, NULL)
+        ON CONFLICT(ticker) DO UPDATE SET price=excluded.price, name=COALESCE(excluded.name, price_cache.name), timestamp=CURRENT_TIMESTAMP, manual_price=NULL
+      `).run(ticker, price, name);
       return price;
     } catch (err: any) {
       logger.error(`[PriceService] Fetch failed for ${ticker}: ${err.message}`);
@@ -150,13 +142,26 @@ export class PriceService {
 
   async fetchProfile(ticker: string): Promise<any | null> {
     if (!ticker) return null;
-    return await new YahooFinanceAdapter().getProfile(ticker);
+    const cached = this.globalDb.prepare('SELECT name FROM price_cache WHERE ticker = ?').get(ticker);
+    if (cached && cached.name) return { name: cached.name };
+    
+    // Fallback: If not in cache, fetch it (this will also update cache)
+    try {
+      const result = await new YahooFinanceAdapter().getPrice(ticker);
+      return result ? { name: result.name } : null;
+    } catch (e) {
+      return null;
+    }
   }
 
   async findMFCodeByName(name: string): Promise<any | null> {
-    const results = await new MFAdapter().search(name);
-    if (results && results.length > 0) {
-      return { ticker: results[0].symbol, name: results[0].description };
+    try {
+      const results = await new MFAdapter().search(name);
+      if (results && results.length > 0) {
+        return { ticker: results[0].symbol, name: results[0].description };
+      }
+    } catch (err: any) {
+      logger.error(`[PriceService] MF lookup failed for ${name}: ${err.message}`);
     }
     return null;
   }
@@ -166,9 +171,14 @@ export class PriceService {
   }
 
   async searchSymbols(query: string, type: string): Promise<any[]> {
-    if (type === ASSET_TYPES.MF) {
-      return await new MFAdapter().search(query);
+    try {
+      if (type === ASSET_TYPES.MF) {
+        return await new MFAdapter().search(query);
+      }
+      return await new YahooFinanceAdapter().search(query);
+    } catch (err: any) {
+      logger.error(`[PriceService] Symbol search failed for ${query}: ${err.message}`);
+      return [];
     }
-    return await new YahooFinanceAdapter().search(query);
   }
 }
