@@ -6,6 +6,7 @@ import { User, Asset, PortfolioHistory, Settings, PortfolioSummary } from '../ty
 interface StoreState {
   baseCurrency: string;
   totalNetWorth: number;
+  totalAnnualDividend: number;
   assets: Asset[];
   portfolioHistory: PortfolioHistory[];
   settings: Settings;
@@ -39,6 +40,7 @@ const useStore = create<StoreState>()(
     (set, get) => ({
       baseCurrency: 'INR',
       totalNetWorth: 0,
+      totalAnnualDividend: 0,
       assets: [],
       portfolioHistory: [],
       settings: {},
@@ -60,6 +62,7 @@ const useStore = create<StoreState>()(
             error: null, 
             assets: [], 
             totalNetWorth: 0, 
+            totalAnnualDividend: 0,
             portfolioHistory: [], 
             settings: {} 
           });
@@ -96,6 +99,7 @@ const useStore = create<StoreState>()(
           isAuthenticated: false, 
           assets: [], 
           totalNetWorth: 0, 
+          totalAnnualDividend: 0,
           portfolioHistory: [], 
           settings: {} 
         });
@@ -117,6 +121,7 @@ const useStore = create<StoreState>()(
           set({ 
             assets: data.assets, 
             totalNetWorth: data.totalNetWorth, 
+            totalAnnualDividend: data.totalAnnualDividend,
             baseCurrency: data.baseCurrency, 
             error: null 
           });
@@ -135,6 +140,7 @@ const useStore = create<StoreState>()(
           set({ 
             assets: data.assets, 
             totalNetWorth: data.totalNetWorth, 
+            totalAnnualDividend: data.totalAnnualDividend,
             baseCurrency: data.baseCurrency, 
             error: null 
           });
@@ -150,6 +156,7 @@ const useStore = create<StoreState>()(
           set({ 
             assets: data.assets, 
             totalNetWorth: data.totalNetWorth, 
+            totalAnnualDividend: data.totalAnnualDividend,
             baseCurrency: data.baseCurrency, 
             error: null 
           });

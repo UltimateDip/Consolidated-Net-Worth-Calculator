@@ -11,6 +11,7 @@ const StatCards = ({
   largest, 
   largestPct, 
   topClass,
+  totalAnnualDividend,
   autoRefresh,
   setAutoRefresh
 }) => {
@@ -61,7 +62,7 @@ const StatCards = ({
       </div>
 
       {/* ========= STAT CARDS ========= */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${totalAnnualDividend ? 4 : 3}, 1fr)`, gap: '20px', marginBottom: '30px' }}>
         <div className="glass-panel" style={{ textAlign: 'center' }}>
           <Coins size={24} style={{ color: 'var(--accent-primary)', marginBottom: '8px' }} />
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Tracked Assets</p>
@@ -83,6 +84,16 @@ const StatCards = ({
             {topClass ? formatCurrency(topClass.value, baseCurrency) : '—'}
           </span>
         </div>
+        {totalAnnualDividend > 0 && (
+          <div className="glass-panel" style={{ textAlign: 'center' }}>
+            <TrendingUp size={24} style={{ color: '#10b981', marginBottom: '8px' }} />
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Annual Dividend</p>
+            <h3 style={{ fontSize: '1.2rem', margin: '4px 0 0', color: '#10b981' }}>
+              {formatCurrency(totalAnnualDividend, baseCurrency)}
+            </h3>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Projected income</span>
+          </div>
+        )}
       </div>
     </>
   );

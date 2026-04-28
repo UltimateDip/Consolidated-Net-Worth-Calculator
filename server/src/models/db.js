@@ -28,6 +28,8 @@ function getGlobalDb() {
       ticker TEXT PRIMARY KEY,
       price REAL,
       name TEXT,
+      dividend_yield REAL,
+      dividend_rate REAL,
       manual_price REAL,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -50,6 +52,14 @@ function getGlobalDb() {
   } catch (e) {
     // Column already exists, ignore
   }
+
+  try {
+    db.prepare('ALTER TABLE price_cache ADD COLUMN dividend_yield REAL').run();
+  } catch (e) {}
+
+  try {
+    db.prepare('ALTER TABLE price_cache ADD COLUMN dividend_rate REAL').run();
+  } catch (e) {}
 
   globalDbInstance = db;
   return globalDbInstance;

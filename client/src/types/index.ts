@@ -19,6 +19,8 @@ export interface Asset {
   display_name?: string;
   last_updated?: string;
   originalPrice?: number;
+  dividendYield?: number | null;
+  dividendRate?: number | null;
 }
 
 export interface PortfolioHistory {
@@ -35,5 +37,6 @@ export interface Settings {
 export interface PortfolioSummary {
   assets: Asset[];
   totalNetWorth: number;
+  totalAnnualDividend: number;
   baseCurrency: string;
 }
