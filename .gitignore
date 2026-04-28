@@ -31,3 +31,5 @@ server/logs/
 # Cache
 server/.npm-cache/
 
+
+.idea/
